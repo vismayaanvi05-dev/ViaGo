@@ -11,6 +11,13 @@ import RestaurantMenu from './pages/customer/RestaurantMenu';
 import Checkout from './pages/customer/Checkout';
 import Orders from './pages/customer/Orders';
 
+// Tenant Admin
+import TenantAdminLayout from './pages/tenant-admin/Layout';
+import TenantDashboard from './pages/tenant-admin/Dashboard';
+import TenantSettings from './pages/tenant-admin/Settings';
+import TenantStores from './pages/tenant-admin/Stores';
+import TenantOrders from './pages/tenant-admin/Orders';
+
 // Landing page
 const Home = () => {
   return (
@@ -81,21 +88,40 @@ function App() {
             }
           />
           
-          {/* Placeholder routes for other roles */}
+          {/* Tenant Admin Routes */}
           <Route
             path="/tenant-admin"
             element={
               <ProtectedRoute allowedRoles={['tenant_admin']}>
-                <div className="min-h-screen flex items-center justify-center">
-                  <div className="text-center">
-                    <h1 className="text-3xl font-bold text-gray-900">Tenant Admin Dashboard</h1>
-                    <p className="text-gray-600 mt-2">Coming soon...</p>
-                  </div>
-                </div>
+                <TenantAdminLayout />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<TenantDashboard />} />
+            <Route path="settings" element={<TenantSettings />} />
+            <Route path="stores" element={<TenantStores />} />
+            <Route path="orders" element={<TenantOrders />} />
+            <Route 
+              path="menu" 
+              element={
+                <div className="p-8">
+                  <h1 className="text-3xl font-bold">Menu Builder</h1>
+                  <p className="text-gray-600 mt-2">Coming soon...</p>
+                </div>
+              } 
+            />
+            <Route 
+              path="reports" 
+              element={
+                <div className="p-8">
+                  <h1 className="text-3xl font-bold">Reports</h1>
+                  <p className="text-gray-600 mt-2">Coming soon...</p>
+                </div>
+              } 
+            />
+          </Route>
           
+          {/* Placeholder routes for other roles */}
           <Route
             path="/super-admin"
             element={
