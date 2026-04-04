@@ -34,9 +34,17 @@ const Login = () => {
       return;
     }
 
+    // Auto-detect role based on phone number
+    let detectedRole = 'customer'; // default
+    if (phone === '9999999999') detectedRole = 'super_admin';
+    else if (phone === '8888888888') detectedRole = 'tenant_admin';
+    else if (phone === '9333333333') detectedRole = 'delivery';
+    
+    setRole(detectedRole);
+
     setLoading(true);
     try {
-      const response = await authAPI.sendOTP(phone, role);
+      const response = await authAPI.sendOTP(phone, detectedRole);
       
       toast({
         title: "OTP Sent",
@@ -122,21 +130,6 @@ const Login = () => {
           {step === 'phone' ? (
             <form onSubmit={handleSendOTP} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="role">Login As</Label>
-                <Select value={role} onValueChange={setRole}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="customer">Customer</SelectItem>
-                    <SelectItem value="tenant_admin">Restaurant Owner</SelectItem>
-                    <SelectItem value="delivery">Delivery Partner</SelectItem>
-                    <SelectItem value="super_admin">Super Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
                 <Input
                   id="phone"
@@ -147,6 +140,9 @@ const Login = () => {
                   maxLength={10}
                   required
                 />
+                <p className="text-xs text-gray-500">
+                  Use 9111111111 for Customer, 8888888888 for Tenant Admin, 9999999999 for Super Admin
+                </p>
               </div>
               
               <Button type="submit" className="w-full" disabled={loading}>

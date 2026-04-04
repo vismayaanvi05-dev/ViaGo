@@ -3,6 +3,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { Toaster } from '@/components/ui/toaster';
 
 // Pages
 import Login from './pages/Login';
@@ -57,6 +58,7 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <Toaster />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />

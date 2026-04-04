@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
 const Login = () => {
@@ -14,13 +13,11 @@ const Login = () => {
   const { login } = useAuth();
   const { toast } = useToast();
   
-  const [step, setStep] = useState('phone'); // 'phone' or 'otp'
+  const [step, setStep] = useState('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-  const [role, setRole] = useState('customer');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
 
   const handleSendOTP = async (e) => {
     e.preventDefault();
@@ -36,15 +33,13 @@ const Login = () => {
 
     setLoading(true);
     try {
-      const response = await authAPI.sendOTP(phone, role);
+      const response = await authAPI.sendOTP(phone, 'super_admin');
       
       toast({
         title: "OTP Sent",
         description: `OTP: ${response.data.otp}`,
-        variant: "success",
       });
       
-      setOtpSent(true);
       setStep('otp');
     } catch (error) {
       toast({
@@ -71,7 +66,7 @@ const Login = () => {
 
     setLoading(true);
     try {
-      const response = await authAPI.verifyOTP(phone, otp, role, name || null);
+      const response = await authAPI.verifyOTP(phone, otp, 'super_admin', name || null);
       
       login(response.data.access_token, response.data.user);
       
@@ -80,23 +75,7 @@ const Login = () => {
         description: `Welcome ${response.data.user.name}!`,
       });
       
-      // Navigate based on role
-      switch (response.data.user.role) {
-        case 'super_admin':
-          navigate('/super-admin');
-          break;
-        case 'tenant_admin':
-          navigate('/tenant-admin');
-          break;
-        case 'customer':
-          navigate('/customer');
-          break;
-        case 'delivery':
-          navigate('/delivery');
-          break;
-        default:
-          navigate('/');
-      }
+      navigate('/');
     } catch (error) {
       toast({
         title: "Error",
@@ -109,10 +88,10 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-red-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">HyperServe</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">Super Admin Portal</CardTitle>
           <CardDescription className="text-center">
             {step === 'phone' ? 'Enter your phone number to continue' : 'Enter the OTP sent to your phone'}
           </CardDescription>
@@ -122,26 +101,11 @@ const Login = () => {
           {step === 'phone' ? (
             <form onSubmit={handleSendOTP} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="role">Login As</Label>
-                <Select value={role} onValueChange={setRole}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="customer">Customer</SelectItem>
-                    <SelectItem value="tenant_admin">Restaurant Owner</SelectItem>
-                    <SelectItem value="delivery">Delivery Partner</SelectItem>
-                    <SelectItem value="super_admin">Super Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
                 <Input
                   id="phone"
                   type="tel"
-                  placeholder="9876543210"
+                  placeholder="9999999999"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   maxLength={10}
@@ -175,7 +139,7 @@ const Login = () => {
                 <Input
                   id="name"
                   type="text"
-                  placeholder="John Doe"
+                  placeholder="Admin Name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -204,7 +168,7 @@ const Login = () => {
         </CardContent>
         
         <CardFooter className="text-center text-sm text-gray-500">
-          Multi-tenant SaaS Platform for Food Delivery
+          Platform Administration
         </CardFooter>
       </Card>
     </div>
