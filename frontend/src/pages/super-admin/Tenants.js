@@ -8,11 +8,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit, Building2, Calendar, Trash2, Power, Pause } from 'lucide-react';
+import { 
+  Plus, 
+  Edit, 
+  Building2, 
+  Calendar, 
+  Trash2, 
+  Power, 
+  CreditCard, 
+  Clock, 
+  Package, 
+  Phone, 
+  MapPin,
+  DollarSign
+} from 'lucide-react';
 
 const Tenants = () => {
   const { toast } = useToast();
   const [tenants, setTenants] = useState([]);
+  const [subscriptions, setSubscriptions] = useState({});
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -41,6 +55,19 @@ const Tenants = () => {
     try {
       const response = await superAdminAPI.getTenants();
       setTenants(response.data);
+      
+      // Fetch subscription details for each tenant
+      const subsMap = {};
+      for (const tenant of response.data) {
+        try {
+          const subResponse = await superAdminAPI.getTenantSubscription(tenant.id);
+          subsMap[tenant.id] = subResponse.data;
+        } catch (error) {
+          // Tenant might not have subscription yet
+          subsMap[tenant.id] = null;
+        }
+      }
+      setSubscriptions(subsMap);
     } catch (error) {
       toast({
         title: "Error",
@@ -353,71 +380,179 @@ const Tenants = () => {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tenants.map((tenant) => (
-            <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-xl">{tenant.name}</CardTitle>
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => openEditTenant(tenant)} title="Edit">
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="ghost" 
-                      onClick={() => handleToggleStatus(tenant.id, tenant.status)}
-                      title={tenant.status === 'active' ? 'Deactivate' : 'Activate'}
-                    >
-                      <Power className={`h-4 w-4 ${tenant.status === 'active' ? 'text-green-600' : 'text-gray-400'}`} />
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="ghost" 
-                      onClick={() => handleDeleteTenant(tenant.id, tenant.name)}
-                      title="Delete"
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+          {tenants.map((tenant) => {
+            const subscription = subscriptions[tenant.id];
+            const plan = subscription?.plan_id ? plans.find(p => p.id === subscription.plan_id) : null;
+            const isExpiringSoon = subscription?.end_date ? 
+              (new Date(subscription.end_date) - new Date()) / (1000 * 60 * 60 * 24) < 7 : false;
+            
+            return (
+              <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <CardTitle className="text-xl mb-1">{tenant.name}</CardTitle>
+                      {tenant.business_name && (
+                        <p className="text-sm text-gray-600">{tenant.business_name}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => openEditTenant(tenant)} title="Edit">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => handleToggleStatus(tenant.id, tenant.status)}
+                        title={tenant.status === 'active' ? 'Deactivate' : 'Activate'}
+                      >
+                        <Power className={`h-4 w-4 ${tenant.status === 'active' ? 'text-green-600' : 'text-gray-400'}`} />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => handleDeleteTenant(tenant.id, tenant.name)}
+                        title="Delete"
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <Building2 className="h-4 w-4 text-gray-500" />
-                  <span className="capitalize">{tenant.business_type.replace('_', ' ')}</span>
-                </div>
-                
-                <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="h-4 w-4 text-gray-500" />
-                  <span>{new Date(tenant.created_at).toLocaleDateString()}</span>
-                </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* Business Type */}
+                  <div className="flex items-center gap-2 text-sm">
+                    <Building2 className="h-4 w-4 text-gray-500" />
+                    <span className="capitalize">{tenant.business_type.replace('_', ' ')}</span>
+                  </div>
+                  
+                  {/* Contact Information */}
+                  {tenant.mobile_number && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="h-4 w-4 text-gray-500" />
+                      <span>{tenant.mobile_number}</span>
+                    </div>
+                  )}
+                  
+                  {tenant.address && (
+                    <div className="flex items-start gap-2 text-sm">
+                      <MapPin className="h-4 w-4 text-gray-500 mt-0.5" />
+                      <span className="line-clamp-2">{tenant.address}{tenant.town ? `, ${tenant.town}` : ''}</span>
+                    </div>
+                  )}
+                  
+                  {/* Active Modules */}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Active Modules:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {tenant.active_modules && tenant.active_modules.length > 0 ? (
+                        tenant.active_modules.map((module) => (
+                          <Badge key={module} variant="secondary" className="capitalize">
+                            {module}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-xs text-gray-400">No modules</span>
+                      )}
+                    </div>
+                  </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {tenant.active_modules?.map((module) => (
-                    <Badge key={module} variant="secondary" className="capitalize">
-                      {module}
+                  {/* Subscription Information */}
+                  {subscription ? (
+                    <div className="pt-3 border-t space-y-2">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm font-medium">Subscription</span>
+                      </div>
+                      
+                      {/* Plan Name */}
+                      {plan && (
+                        <div className="text-sm">
+                          <span className="text-gray-600">Plan: </span>
+                          <span className="font-medium">{plan.name}</span>
+                          <span className="text-gray-500"> (₹{plan.price}/{plan.billing_cycle})</span>
+                        </div>
+                      )}
+                      
+                      {/* Pricing Model */}
+                      <div className="text-sm">
+                        <span className="text-gray-600">Model: </span>
+                        <Badge variant="outline" className="capitalize">
+                          {subscription.pricing_model}
+                        </Badge>
+                        {subscription.commission_percentage > 0 && (
+                          <span className="text-gray-500 ml-1">
+                            ({subscription.commission_percentage}% commission)
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Expiry Date */}
+                      {subscription.end_date && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="h-4 w-4 text-gray-500" />
+                          <span className="text-gray-600">Expires: </span>
+                          <span className={isExpiringSoon ? 'text-red-600 font-medium' : ''}>
+                            {new Date(subscription.end_date).toLocaleDateString()}
+                          </span>
+                          {isExpiringSoon && (
+                            <Badge variant="destructive" className="text-xs">Soon</Badge>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Status */}
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          variant={
+                            subscription.status === 'active' ? 'success' : 
+                            subscription.status === 'trial' ? 'secondary' : 
+                            'destructive'
+                          }
+                        >
+                          {subscription.status}
+                        </Badge>
+                        {subscription.auto_renew && (
+                          <span className="text-xs text-green-600">Auto-renew</span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="pt-3 border-t">
+                      <Badge variant="outline" className="text-orange-600 border-orange-600">
+                        No Subscription
+                      </Badge>
+                    </div>
+                  )}
+
+                  {/* Created Date */}
+                  <div className="flex items-center gap-2 text-xs text-gray-500 pt-2 border-t">
+                    <Calendar className="h-3 w-3" />
+                    <span>Created: {new Date(tenant.created_at).toLocaleDateString()}</span>
+                  </div>
+                  
+                  {/* Tenant Status */}
+                  <div>
+                    <Badge variant={tenant.status === 'active' ? 'success' : 'destructive'}>
+                      {tenant.status}
                     </Badge>
-                  ))}
-                </div>
+                  </div>
 
-                <div className="pt-3 border-t">
-                  <Badge variant={tenant.status === 'active' ? 'success' : 'destructive'}>
-                    {tenant.status}
-                  </Badge>
-                </div>
-
-                <Button
-                  className="w-full mt-2"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openAssignSubscription(tenant)}
-                >
-                  Assign Subscription
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
+                  {/* Action Button */}
+                  <Button
+                    className="w-full mt-2"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openAssignSubscription(tenant)}
+                  >
+                    <Package className="h-4 w-4 mr-2" />
+                    {subscription ? 'Update Subscription' : 'Assign Subscription'}
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
