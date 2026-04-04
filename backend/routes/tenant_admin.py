@@ -6,6 +6,7 @@ from models.item import Item, ItemCreate, ItemUpdate, ItemVariant, ItemVariantCr
 from middleware.auth import get_current_user, require_role, verify_tenant_access, get_tenant_id
 from datetime import datetime
 from typing import List, Optional
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/tenant-admin", tags=["Tenant Admin"])
 
@@ -14,6 +15,35 @@ def get_db():
     return db
 
 # ==================== TENANT SETTINGS ====================
+
+
+# ==================== TENANT MODULES ====================
+
+class TenantModulesResponse(BaseModel):
+    active_modules: List[str]
+    tenant_name: str
+
+@router.get("/modules", response_model=TenantModulesResponse)
+async def get_tenant_modules(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Get tenant's active modules for subscription-based UI rendering"""
+    await require_role(current_user, ["tenant_admin", "vendor"])
+    tenant_id = await get_tenant_id(current_user)
+    
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant ID required")
+    
+    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0, "active_modules": 1, "name": 1})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    return {
+        "active_modules": tenant.get("active_modules", ["food"]),
+        "tenant_name": tenant.get("name", "")
+    }
+
 
 @router.get("/settings", response_model=TenantSettings)
 async def get_tenant_settings(

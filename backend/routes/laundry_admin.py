@@ -11,7 +11,7 @@ from models.laundry import (
     LaundryOrder, LaundryOrderCreate, LaundryOrderUpdate,
     TimeSlot, TimeSlotCreate
 )
-from middleware.auth import get_current_user, require_role, verify_tenant_access, get_tenant_id
+from middleware.auth import get_current_user, require_role, verify_tenant_access, get_tenant_id, require_module_access
 
 router = APIRouter(prefix="/laundry-admin", tags=["Laundry Admin"])
 
@@ -30,6 +30,7 @@ async def list_services(
 ):
     """List laundry services"""
     await require_role(current_user, ["tenant_admin", "super_admin", "vendor"])
+    await require_module_access(current_user, "laundry")
     tenant_id = await get_tenant_id(current_user)
     
     if not tenant_id:

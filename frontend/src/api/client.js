@@ -79,6 +79,9 @@ export const customerAPI = {
 
 // ==================== TENANT ADMIN APIs ====================
 export const tenantAdminAPI = {
+  // Modules
+  getModules: () => apiClient.get('/tenant-admin/modules'),
+  
   // Settings
   getSettings: () => apiClient.get('/tenant-admin/settings'),
   updateSettings: (data) => apiClient.put('/tenant-admin/settings', data),

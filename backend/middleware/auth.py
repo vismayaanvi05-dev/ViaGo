@@ -85,3 +85,37 @@ async def verify_tenant_access(current_user: dict, resource_tenant_id: str):
         )
     
     return True
+
+
+
+async def require_module_access(current_user: dict, module: str):
+    """
+    Check if tenant has access to the specified module
+    module: 'food', 'grocery', or 'laundry'
+    """
+    from server import db
+    
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        # Super admin doesn't need module check
+        if current_user.get("role") == "super_admin":
+            return
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tenant ID required"
+        )
+    
+    # Fetch tenant's active modules
+    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0, "active_modules": 1})
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found"
+        )
+    
+    active_modules = tenant.get("active_modules", [])
+    if module not in active_modules:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Your subscription does not include the {module.title()} module. Please upgrade your plan."
+        )
