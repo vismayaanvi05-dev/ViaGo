@@ -22,10 +22,14 @@ const VendorSettings = () => {
     email: '',
     opening_time: '09:00',
     closing_time: '22:00',
+    delivery_fee: 0,
+    packaging_charge: 0,
+    service_charge: 0,
     is_active: true,
     accepts_cod: true,
     accepts_online: true,
   });
+  const [storeId, setStoreId] = useState(null);
   const [passwordForm, setPasswordForm] = useState({
     current_password: '',
     new_password: '',
@@ -40,23 +44,35 @@ const VendorSettings = () => {
     setLoading(true);
     try {
       const response = await vendorAPI.getStore();
-      const store = response.data;
-      setStoreForm({
-        name: store.name || '',
-        address_line: store.address_line || '',
-        city: store.city || '',
-        state: store.state || '',
-        pincode: store.pincode || '',
-        phone: store.phone || '',
-        email: store.email || '',
-        opening_time: store.opening_time || '09:00',
-        closing_time: store.closing_time || '22:00',
-        is_active: store.is_active !== false,
-        accepts_cod: store.accepts_cod !== false,
-        accepts_online: store.accepts_online !== false,
-      });
+      const stores = response.data || [];
+      const store = stores[0]; // Vendor has only one store
+      
+      if (store) {
+        setStoreId(store.id);
+        setStoreForm({
+          name: store.name || '',
+          address_line: store.address_line || '',
+          city: store.city || '',
+          state: store.state || '',
+          pincode: store.pincode || '',
+          phone: store.phone || '',
+          email: store.email || '',
+          opening_time: store.opening_time || '09:00',
+          closing_time: store.closing_time || '22:00',
+          delivery_fee: store.delivery_fee || 0,
+          packaging_charge: store.packaging_charge || 0,
+          service_charge: store.service_charge || 0,
+          is_active: store.is_active !== false,
+          accepts_cod: store.accepts_cod !== false,
+          accepts_online: store.accepts_online !== false,
+        });
+      }
     } catch (error) {
-      console.error('Failed to fetch store details:', error);
+      toast({
+        title: \"Error\",
+        description: error.response?.data?.detail || \"Failed to load store details\",
+        variant: \"destructive\",
+      });
     } finally {
       setLoading(false);
     }
@@ -178,6 +194,55 @@ const VendorSettings = () => {
                 </div>
               </div>
               <Button type="submit">Save Changes</Button>
+
+        {/* Restaurant Charges */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Restaurant Charges</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleStoreUpdate} className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Delivery Fee (₹)</Label>
+                  <Input
+                    type="number"
+                    value={storeForm.delivery_fee}
+                    onChange={(e) => setStoreForm({ ...storeForm, delivery_fee: parseFloat(e.target.value) || 0 })}
+                    min="0"
+                    step="0.01"
+                  />
+                  <p className="text-xs text-gray-500">Charged per order</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Packaging Charge (₹)</Label>
+                  <Input
+                    type="number"
+                    value={storeForm.packaging_charge}
+                    onChange={(e) => setStoreForm({ ...storeForm, packaging_charge: parseFloat(e.target.value) || 0 })}
+                    min="0"
+                    step="0.01"
+                  />
+                  <p className="text-xs text-gray-500">Added to each order</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Service Charge (%)</Label>
+                  <Input
+                    type="number"
+                    value={storeForm.service_charge}
+                    onChange={(e) => setStoreForm({ ...storeForm, service_charge: parseFloat(e.target.value) || 0 })}
+                    min="0"
+                    max="100"
+                    step="0.01"
+                  />
+                  <p className="text-xs text-gray-500">% of order value</p>
+                </div>
+              </div>
+              <Button type="submit">Save All Settings</Button>
+            </form>
+          </CardContent>
+        </Card>
+
             </form>
           </CardContent>
         </Card>

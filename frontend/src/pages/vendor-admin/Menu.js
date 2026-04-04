@@ -37,16 +37,33 @@ const VendorMenu = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Get vendor's store first
+      const storesRes = await vendorAPI.getStore();
+      const stores = storesRes.data || [];
+      const vendorStore = stores[0]; // Vendor has only one store
+      
+      if (!vendorStore) {
+        toast({
+          title: "Error",
+          description: "No store found for this vendor",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Fetch items and categories for this store
       const [itemsRes, categoriesRes] = await Promise.all([
-        vendorAPI.getItems({}),
-        vendorAPI.getCategories({ module: 'food' })
+        vendorAPI.getItems({ store_id: vendorStore.id, module: 'food' }),
+        vendorAPI.getCategories({ store_id: vendorStore.id, module: 'food' })
       ]);
+      
       setItems(itemsRes.data || []);
       setCategories(categoriesRes.data || []);
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to load data",
+        description: error.response?.data?.detail || "Failed to load data",
         variant: "destructive",
       });
     } finally {
@@ -57,11 +74,30 @@ const VendorMenu = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Get vendor's store ID
+      const storesRes = await vendorAPI.getStore();
+      const vendorStore = (storesRes.data || [])[0];
+      
+      if (!vendorStore) {
+        toast({
+          title: "Error",
+          description: "No store found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const itemData = {
+        ...itemForm,
+        store_id: vendorStore.id,
+        module: 'food'
+      };
+
       if (editingItem) {
-        await vendorAPI.updateItem(editingItem.id, itemForm);
+        await vendorAPI.updateItem(editingItem.id, itemData);
         toast({ title: "Success", description: "Item updated successfully" });
       } else {
-        await vendorAPI.createItem(itemForm);
+        await vendorAPI.createItem(itemData);
         toast({ title: "Success", description: "Item created successfully" });
       }
       fetchData();

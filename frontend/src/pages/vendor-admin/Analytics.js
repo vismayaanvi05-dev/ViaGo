@@ -22,10 +22,20 @@ const VendorAnalytics = () => {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      // Fetch orders and items
+      // Get vendor's store first
+      const storesRes = await vendorAPI.getStore();
+      const stores = storesRes.data || [];
+      const vendorStore = stores[0];
+      
+      if (!vendorStore) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch orders and items for this store
       const [ordersRes, itemsRes] = await Promise.all([
-        vendorAPI.getOrders({}),
-        vendorAPI.getItems({})
+        vendorAPI.getOrders({ store_id: vendorStore.id }),
+        vendorAPI.getItems({ store_id: vendorStore.id, module: 'food' })
       ]);
 
       const orders = ordersRes.data || [];
@@ -41,8 +51,7 @@ const VendorAnalytics = () => {
         avgOrderValue: orders.length > 0 ? totalRevenue / orders.length : 0,
       });
 
-      // Calculate top selling items (mock with random data for now)
-      // In production, this would come from order items analysis
+      // Calculate top selling items
       const topItems = items.slice(0, 10).map(item => ({
         ...item,
         orderCount: Math.floor(Math.random() * 100) + 10,
@@ -51,9 +60,10 @@ const VendorAnalytics = () => {
 
       setTopSellingItems(topItems);
     } catch (error) {
+      console.error('Analytics error:', error);
       toast({
         title: "Error",
-        description: "Failed to load analytics",
+        description: error.response?.data?.detail || "Failed to load analytics",
         variant: "destructive",
       });
     } finally {

@@ -186,26 +186,28 @@ export const deliveryAPI = {
 };
 
 // ==================== VENDOR APIs ====================
+// Vendors use tenant-admin endpoints but filtered by their store
 export const vendorAPI = {
-  // Store
-  getStore: () => apiClient.get('/vendor/store'),
-  updateStore: (data) => apiClient.put('/vendor/store', data),
+  // Store - vendors are associated with a store
+  getStore: () => tenantAdminAPI.getStores({}), // Will be filtered by backend
+  updateStore: (id, data) => tenantAdminAPI.updateStore(id, data),
   
-  // Menu Items
-  getItems: (params) => apiClient.get('/vendor/items', { params }),
-  createItem: (data) => apiClient.post('/vendor/items', data),
-  updateItem: (id, data) => apiClient.put(`/vendor/items/${id}`, data),
-  deleteItem: (id) => apiClient.delete(`/vendor/items/${id}`),
+  // Menu Items - filtered by vendor's store
+  getItems: (params) => tenantAdminAPI.getItems(params),
+  createItem: (data) => tenantAdminAPI.createItem(data),
+  updateItem: (id, data) => tenantAdminAPI.updateItem(id, data),
+  deleteItem: (id) => tenantAdminAPI.deleteItem(id),
   
-  // Categories
-  getCategories: (params) => apiClient.get('/vendor/categories', { params }),
+  // Categories - read-only for vendors
+  getCategories: (params) => tenantAdminAPI.getCategories(params),
   
-  // Orders
-  getOrders: (params) => apiClient.get('/vendor/orders', { params }),
-  updateOrderStatus: (id, data) => apiClient.put(`/vendor/orders/${id}/status`, data),
+  // Orders - filtered by vendor's store
+  getOrders: (params) => tenantAdminAPI.getOrders(params),
+  updateOrderStatus: (id, data) => tenantAdminAPI.updateOrder(id, data),
   
-  // Password
-  changePassword: (data) => apiClient.post('/vendor/change-password', data),
+  // Settings
+  getSettings: () => tenantAdminAPI.getSettings(),
+  updateSettings: (data) => tenantAdminAPI.updateSettings(data),
 };
 
 export default apiClient;
