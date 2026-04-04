@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { superAdminAPI } from '@/api/client';
 import { Edit, Trash2, Plus, Mail } from 'lucide-react';
@@ -47,7 +48,8 @@ const ManageTenantAdmins = () => {
       id: admin.id,
       name: admin.name,
       email: admin.email,
-      password: '' // Empty for security
+      password: '', // Empty for security
+      is_active: admin.is_active !== false // Default to true if not set
     });
     setShowEditDialog(true);
   };
@@ -195,6 +197,25 @@ const ManageTenantAdmins = () => {
                   value={editingAdmin.password}
                   onChange={(e) => setEditingAdmin({...editingAdmin, password: e.target.value})}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={editingAdmin.is_active ? "active" : "inactive"}
+                  onValueChange={(value) => setEditingAdmin({...editingAdmin, is_active: value === "active"})}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">
+                  Inactive admins cannot login
+                </p>
               </div>
 
               <div className="flex gap-2">

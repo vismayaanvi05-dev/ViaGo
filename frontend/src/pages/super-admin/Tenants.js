@@ -97,7 +97,14 @@ const Tenants = () => {
     e.preventDefault();
     try {
       if (editingTenant) {
-        await superAdminAPI.updateTenant(editingTenant.id, tenantForm);
+        // Update tenant
+        const updateData = {
+          name: tenantForm.name,
+          business_type: tenantForm.business_type,
+          active_modules: tenantForm.active_modules,
+          status: tenantForm.status
+        };
+        await superAdminAPI.updateTenant(editingTenant.id, updateData);
         toast({ title: "Success", description: "Tenant updated successfully" });
       } else {
         await superAdminAPI.createTenant(tenantForm);
@@ -163,6 +170,7 @@ const Tenants = () => {
       name: tenant.name,
       business_type: tenant.business_type,
       active_modules: tenant.active_modules,
+      status: tenant.status || 'active',
     });
     setDialogOpen(true);
   };
@@ -293,6 +301,28 @@ const Tenants = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Status Control - Only in Edit Mode */}
+              {editingTenant && (
+                <div className="space-y-2">
+                  <Label>Tenant Status</Label>
+                  <Select
+                    value={tenantForm.status || 'active'}
+                    onValueChange={(value) => setTenantForm({ ...tenantForm, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    Inactive tenants cannot access the platform
+                  </p>
+                </div>
+              )}
 
               {/* Subscription Assignment Section */}
               {!editingTenant && (
