@@ -69,9 +69,9 @@ const VendorSettings = () => {
       }
     } catch (error) {
       toast({
-        title: \"Error\",
-        description: error.response?.data?.detail || \"Failed to load store details\",
-        variant: \"destructive\",
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to load store details",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
