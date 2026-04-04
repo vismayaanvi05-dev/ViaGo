@@ -22,7 +22,6 @@ const VendorSettings = () => {
     email: '',
     opening_time: '09:00',
     closing_time: '22:00',
-    delivery_fee: 0,
     packaging_charge: 0,
     service_charge: 0,
     is_active: true,
@@ -59,7 +58,6 @@ const VendorSettings = () => {
           email: store.email || '',
           opening_time: store.opening_time || '09:00',
           closing_time: store.closing_time || '22:00',
-          delivery_fee: store.delivery_fee || 0,
           packaging_charge: store.packaging_charge || 0,
           service_charge: store.service_charge || 0,
           is_active: store.is_active !== false,
@@ -202,18 +200,7 @@ const VendorSettings = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleStoreUpdate} className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Delivery Fee (₹)</Label>
-                  <Input
-                    type="number"
-                    value={storeForm.delivery_fee}
-                    onChange={(e) => setStoreForm({ ...storeForm, delivery_fee: parseFloat(e.target.value) || 0 })}
-                    min="0"
-                    step="0.01"
-                  />
-                  <p className="text-xs text-gray-500">Charged per order</p>
-                </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Packaging Charge (₹)</Label>
                   <Input
@@ -238,6 +225,7 @@ const VendorSettings = () => {
                   <p className="text-xs text-gray-500">% of order value</p>
                 </div>
               </div>
+              <p className="text-sm text-gray-500 mt-2">Note: Delivery fee is managed by tenant admin</p>
               <Button type="submit">Save All Settings</Button>
             </form>
           </CardContent>
