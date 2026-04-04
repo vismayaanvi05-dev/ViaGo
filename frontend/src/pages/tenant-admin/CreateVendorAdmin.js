@@ -24,9 +24,10 @@ const CreateVendorAdmin = () => {
 
   const fetchStores = async () => {
     try {
-      const response = await apiClient.tenantAdmin.getStores();
+      const response = await apiClient.getStores();
       setStores(response.data);
     } catch (error) {
+      console.error('Error fetching stores:', error);
       toast({
         title: "Error",
         description: "Failed to fetch stores",
@@ -40,7 +41,7 @@ const CreateVendorAdmin = () => {
     setLoading(true);
 
     try {
-      const response = await apiClient.tenantAdmin.createVendorAdmin(formData);
+      const response = await apiClient.createVendorAdmin(formData);
       
       toast({
         title: "Success",

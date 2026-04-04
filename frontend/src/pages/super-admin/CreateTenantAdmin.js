@@ -24,9 +24,10 @@ const CreateTenantAdmin = () => {
 
   const fetchTenants = async () => {
     try {
-      const response = await apiClient.superAdmin.getTenants();
+      const response = await apiClient.getTenants();
       setTenants(response.data);
     } catch (error) {
+      console.error('Error fetching tenants:', error);
       toast({
         title: "Error",
         description: "Failed to fetch tenants",
@@ -40,7 +41,7 @@ const CreateTenantAdmin = () => {
     setLoading(true);
 
     try {
-      const response = await apiClient.superAdmin.createTenantAdmin(formData);
+      const response = await apiClient.createTenantAdmin(formData);
       
       toast({
         title: "Success",

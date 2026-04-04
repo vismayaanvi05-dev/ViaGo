@@ -58,6 +58,34 @@ class TenantSettings(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
+
+
+# Tenant Feature Configuration
+class TenantFeatureConfig(BaseModel):
+    # Payment Methods
+    payment_methods: List[str] = ["cod", "online"]  # cod, online, card, upi, wallet
+    
+    # Admin Controls
+    can_manage_delivery_fees: bool = True
+    can_manage_tax: bool = True
+    can_manage_commission: bool = True
+    
+    # Apps Enabled
+    delivery_boy_app_enabled: bool = True
+    vendor_admin_app_enabled: bool = True
+    customer_app_enabled: bool = True
+    
+    # Permissions
+    tenant_admin_can_create_delivery_boys: bool = True
+    tenant_admin_can_create_vendors: bool = True
+    
+    # Delivery Settings
+    delivery_fee_type: str = "flat"  # flat, distance_based, area_based
+    
+    # Commission
+    platform_commission_percentage: float = 0.0
+    
+
 class TenantSettingsUpdate(BaseModel):
     delivery_charge_type: Optional[str] = None
     flat_delivery_charge: Optional[float] = None
