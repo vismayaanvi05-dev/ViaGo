@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { ArrowLeft } from 'lucide-react';
 import apiClient, { authAPI, customerAPI, tenantAdminAPI, superAdminAPI, deliveryAPI } from '@/api/client';
 
 const CreateTenantAdmin = () => {
@@ -70,6 +71,16 @@ const CreateTenantAdmin = () => {
   return (
     <div className="p-8">
       <div className="max-w-2xl">
+        {/* Back Button */}
+        <Button 
+          variant="ghost" 
+          onClick={() => window.location.href = '/super-admin/tenant-admins'}
+          className="mb-4"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Tenant Admins
+        </Button>
+
         <h1 className="text-3xl font-bold mb-2">Create Tenant Admin</h1>
         <p className="text-gray-600 mb-6">
           Create login credentials for a tenant admin. They can manage their business and create vendor admins.
@@ -147,9 +158,19 @@ const CreateTenantAdmin = () => {
                 </p>
               </div>
 
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? 'Creating...' : 'Create Tenant Admin'}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={loading} className="flex-1">
+                  {loading ? 'Creating...' : 'Create Tenant Admin'}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => window.location.href = '/super-admin/tenant-admins'}
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
