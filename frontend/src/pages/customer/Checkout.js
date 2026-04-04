@@ -16,6 +16,7 @@ const Checkout = () => {
   const [selectedAddress, setSelectedAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [loading, setLoading] = useState(false);
+  const [priceBreakdown, setPriceBreakdown] = useState(null);
   const restaurantId = localStorage.getItem('restaurant_id');
 
   useEffect(() => {
@@ -25,6 +26,37 @@ const Checkout = () => {
     }
     fetchAddresses();
   }, []);
+
+  // Calculate price breakdown when cart or selected address changes
+  useEffect(() => {
+    if (cart.length > 0) {
+      calculatePriceBreakdown();
+    }
+  }, [cart, selectedAddress]);
+
+  const calculatePriceBreakdown = () => {
+    // Calculate subtotal (with admin markup already included in item prices)
+    const subtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+    
+    // Estimate tax (5% - typical value, will be accurate after order placement)
+    const taxPercentage = 5;
+    const taxAmount = (subtotal * taxPercentage) / 100;
+    
+    // Estimate delivery charge (free above ₹500, else ₹40 typical)
+    const deliveryCharge = subtotal >= 500 ? 0 : 40;
+    
+    // Calculate total
+    const totalAmount = subtotal + taxAmount + deliveryCharge;
+    
+    setPriceBreakdown({
+      subtotal: subtotal.toFixed(2),
+      tax: taxAmount.toFixed(2),
+      taxPercentage,
+      delivery: deliveryCharge.toFixed(2),
+      total: totalAmount.toFixed(2),
+      freeDelivery: subtotal >= 500
+    });
+  };
 
   const fetchAddresses = async () => {
     try {
@@ -163,17 +195,40 @@ const Checkout = () => {
                     )}
                   </div>
                   <div className="text-right">
-                    <p className="font-medium">₹{item.price * item.quantity}</p>
+                    <p className="font-medium">₹{(item.price * item.quantity).toFixed(2)}</p>
                     <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
                   </div>
                 </div>
               ))}
-              <div className="border-t pt-3 mt-3">
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Total</span>
-                  <span>₹{getCartTotal()}</span>
+              
+              {/* Price Breakdown */}
+              {priceBreakdown && (
+                <div className="border-t pt-3 mt-3 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Subtotal (incl. admin markup)</span>
+                    <span>₹{priceBreakdown.subtotal}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Tax ({priceBreakdown.taxPercentage}%)</span>
+                    <span>₹{priceBreakdown.tax}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Delivery Charge</span>
+                    <span className={priceBreakdown.freeDelivery ? "text-green-600 font-medium" : ""}>
+                      {priceBreakdown.freeDelivery ? "FREE" : `₹${priceBreakdown.delivery}`}
+                    </span>
+                  </div>
+                  {priceBreakdown.freeDelivery && (
+                    <p className="text-xs text-green-600">🎉 Free delivery on orders above ₹500</p>
+                  )}
+                  <div className="border-t pt-2 mt-2">
+                    <div className="flex justify-between text-lg font-bold">
+                      <span>Total Amount</span>
+                      <span>₹{priceBreakdown.total}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </CardContent>
         </Card>
