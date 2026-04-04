@@ -6,8 +6,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { Toaster } from '@/components/ui/toaster';
 
 // Pages
-import Login from './pages/Login';
 import AdminLogin from './pages/AdminLogin';
+import EmailOTPLogin from './pages/EmailOTPLogin';
+import ForgotPassword from './pages/ForgotPassword';
 
 // Customer routes removed - Customer app is mobile-only
 
@@ -37,13 +38,13 @@ const Home = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-red-50">
       <div className="text-center">
         <h1 className="text-6xl font-bold text-gray-900 mb-4">HyperServe</h1>
-        <p className="text-xl text-gray-600 mb-8">Multi-tenant SaaS Platform for Food Delivery</p>
+        <p className="text-xl text-gray-600 mb-8">Multi-tenant SaaS Platform for Hyperlocal Commerce</p>
         <div className="space-x-4">
           <a
-            href="/login"
+            href="/admin-login"
             className="inline-block px-8 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
           >
-            Get Started
+            Admin Login
           </a>
           <a
             href="https://emergent.sh"
@@ -66,7 +67,6 @@ function App() {
         <Toaster />
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
           <Route path="/admin-login" element={
             <AdminLogin 
               title="Admin Login" 
@@ -75,8 +75,10 @@ function App() {
               colorScheme="blue"
             />
           } />
+          <Route path="/email-otp-login" element={<EmailOTPLogin />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           
-          {/* Customer routes removed - Customer app is mobile-only */}
+          {/* Customer & Delivery apps are mobile-only (React Native) */}
           
           {/* Tenant Admin Routes */}
           <Route

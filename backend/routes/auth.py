@@ -3,8 +3,10 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from models.user import OTPRequest, OTPVerify, LoginResponse, User, UserCreate
 from models.tenant import Tenant
 from utils.helpers import generate_otp, create_access_token
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
+import random
+import uuid
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -224,6 +226,7 @@ async def login_with_password(request: UsernamePasswordLogin, db: AsyncIOMotorDa
         access_token=access_token,
         user=User(**user_doc),
         tenant=tenant_doc
+    )
 
 
 # ==================== EMAIL OTP LOGIN ====================
@@ -394,7 +397,3 @@ async def reset_password(
         "success": True,
         "message": "Password reset successfully"
     }
-
-
-    )
-

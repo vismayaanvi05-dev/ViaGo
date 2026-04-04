@@ -10,6 +10,13 @@ class Tenant(BaseModel):
     name: str
     business_type: str  # 'single_vendor' or 'multi_vendor'
     active_modules: List[str] = []  # ['food', 'grocery', 'laundry']
+    
+    # Business Contact Information
+    mobile_number: Optional[str] = None
+    business_name: Optional[str] = None
+    address: Optional[str] = None
+    town: Optional[str] = None
+    
     logo_url: Optional[str] = None
     domain: Optional[str] = None
     status: str = "active"  # 'active' or 'inactive'
@@ -20,6 +27,13 @@ class TenantCreate(BaseModel):
     name: str
     business_type: str
     active_modules: List[str] = ["food"]
+    
+    # Business Contact Information
+    mobile_number: Optional[str] = None
+    business_name: Optional[str] = None
+    address: Optional[str] = None
+    town: Optional[str] = None
+    
     logo_url: Optional[str] = None
     domain: Optional[str] = None
 
@@ -27,6 +41,13 @@ class TenantUpdate(BaseModel):
     name: Optional[str] = None
     business_type: Optional[str] = None
     active_modules: Optional[List[str]] = None
+    
+    # Business Contact Information
+    mobile_number: Optional[str] = None
+    business_name: Optional[str] = None
+    address: Optional[str] = None
+    town: Optional[str] = None
+    
     logo_url: Optional[str] = None
     domain: Optional[str] = None
     status: Optional[str] = None

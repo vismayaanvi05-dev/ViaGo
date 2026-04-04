@@ -20,8 +20,12 @@ const EnhancedCreateTenant = () => {
     name: '',
     business_type: 'multi_vendor',
     active_modules: ['food'],
-    contact_email: '',
-    contact_phone: '',
+    
+    // Business Contact Information (New fields as per requirement)
+    mobile_number: '',
+    business_name: '',
+    address: '',
+    town: '',
     
     // Feature Configuration
     payment_methods: ['cod', 'online'],

@@ -552,14 +552,6 @@ class TenantAdminCreate(BaseModel):
     email: EmailStr
     password: str
 
-@router.post("/tenant-admins")
-async def create_tenant_admin(
-    admin_data: TenantAdminCreate,
-    current_user: dict = Depends(get_current_user),
-    db: AsyncIOMotorDatabase = Depends(get_db)
-):
-
-
 @router.put("/tenant-admins/{admin_id}")
 async def update_tenant_admin(
     admin_id: str,
@@ -609,7 +601,12 @@ async def delete_tenant_admin(
     
     return {"success": True, "message": "Tenant admin deleted"}
 
-
+@router.post("/tenant-admins")
+async def create_tenant_admin(
+    admin_data: TenantAdminCreate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
     """
     Create Tenant Admin with username/password (Super Admin only)
     """

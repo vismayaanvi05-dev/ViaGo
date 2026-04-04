@@ -115,6 +115,19 @@ const AdminLogin = ({ title, description, redirectPath, colorScheme = "orange" }
               {loading ? 'Logging in...' : 'Login'}
             </Button>
           </form>
+
+          <div className="mt-4 space-y-2">
+            <div className="text-center">
+              <a href="/email-otp-login" className="text-sm text-blue-600 hover:underline">
+                Login with Email OTP
+              </a>
+            </div>
+            <div className="text-center">
+              <a href="/forgot-password" className="text-sm text-gray-600 hover:underline">
+                Forgot Password?
+              </a>
+            </div>
+          </div>
         </CardContent>
         
         <CardFooter className="text-center text-sm text-gray-500">
