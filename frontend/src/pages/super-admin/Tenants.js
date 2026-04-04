@@ -545,17 +545,23 @@ const Tenants = () => {
               (new Date(subscription.end_date) - new Date()) / (1000 * 60 * 60 * 24) < 7 : false;
             
             return (
-              <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <CardTitle className="text-xl mb-1">{tenant.name}</CardTitle>
+              <Card key={tenant.id} className="hover:shadow-lg transition-shadow overflow-hidden">
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-xl mb-1 truncate">{tenant.name}</CardTitle>
                       {tenant.business_name && (
-                        <p className="text-sm text-gray-600">{tenant.business_name}</p>
+                        <p className="text-sm text-gray-600 truncate">{tenant.business_name}</p>
                       )}
                     </div>
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => openEditTenant(tenant)} title="Edit">
+                    <div className="flex gap-1 flex-shrink-0">
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => openEditTenant(tenant)} 
+                        title="Edit"
+                        className="h-8 w-8 p-0"
+                      >
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button 
@@ -563,6 +569,7 @@ const Tenants = () => {
                         variant="ghost" 
                         onClick={() => handleToggleStatus(tenant.id, tenant.status)}
                         title={tenant.status === 'active' ? 'Deactivate' : 'Activate'}
+                        className="h-8 w-8 p-0"
                       >
                         <Power className={`h-4 w-4 ${tenant.status === 'active' ? 'text-green-600' : 'text-gray-400'}`} />
                       </Button>
@@ -571,7 +578,7 @@ const Tenants = () => {
                         variant="ghost" 
                         onClick={() => handleDeleteTenant(tenant.id, tenant.name)}
                         title="Delete"
-                        className="text-red-600 hover:text-red-700"
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
