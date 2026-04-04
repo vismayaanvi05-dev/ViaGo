@@ -20,6 +20,7 @@ import TenantStores from './pages/tenant-admin/Stores';
 import TenantOrders from './pages/tenant-admin/Orders';
 import MenuBuilder from './pages/tenant-admin/MenuBuilder';
 import CreateVendorAdmin from './pages/tenant-admin/CreateVendorAdmin';
+import TenantReports from './pages/tenant-admin/Reports';
 
 // Super Admin
 import SuperAdminLayout from './pages/super-admin/Layout';
@@ -95,15 +96,7 @@ function App() {
             <Route path="menu" element={<MenuBuilder />} />
             <Route path="orders" element={<TenantOrders />} />
             <Route path="vendors" element={<CreateVendorAdmin />} />
-            <Route 
-              path="reports" 
-              element={
-                <div className="p-8">
-                  <h1 className="text-3xl font-bold">Reports</h1>
-                  <p className="text-gray-600 mt-2">Coming soon...</p>
-                </div>
-              } 
-            />
+            <Route path="reports" element={<TenantReports />} />
           </Route>
           
           {/* Super Admin Routes */}
