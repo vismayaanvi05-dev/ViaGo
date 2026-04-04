@@ -518,3 +518,97 @@ async def delete_item(
     return {"success": True, "message": "Item deleted"}
 
 # Continue in next file...
+
+
+
+# ==================== VENDOR ADMIN MANAGEMENT ====================
+
+from pydantic import BaseModel, EmailStr
+from utils.helpers import get_password_hash
+
+class VendorAdminCreate(BaseModel):
+    store_id: str
+    name: str
+    email: EmailStr
+    password: str
+
+@router.post("/vendor-admins")
+async def create_vendor_admin(
+    vendor_data: VendorAdminCreate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Create Vendor Admin with username/password (Tenant Admin only)
+    For multi-vendor setup - restaurant/store owners
+    """
+    await require_role(current_user, ["tenant_admin"])
+    
+    tenant_id = current_user["tenant_id"]
+    
+    # Check if store exists and belongs to tenant
+    store = await db.stores.find_one({"id": vendor_data.store_id, "tenant_id": tenant_id}, {"_id": 0})
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+    
+    # Check if email already exists
+    existing_user = await db.users.find_one({"email": vendor_data.email}, {"_id": 0})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already exists")
+    
+    # Create vendor admin user
+    from models.user import User
+    user = User(
+        tenant_id=tenant_id,
+        name=vendor_data.name,
+        email=vendor_data.email,
+        phone="",  # Optional for vendor admins
+        role="vendor"
+    )
+    
+    user_dict = user.model_dump()
+    user_dict["password"] = get_password_hash(vendor_data.password)
+    user_dict["store_id"] = vendor_data.store_id  # Link to store
+    user_dict["created_at"] = user_dict["created_at"].isoformat()
+    user_dict["updated_at"] = user_dict["updated_at"].isoformat()
+    
+    await db.users.insert_one(user_dict)
+    
+    return {
+        "success": True,
+        "message": "Vendor Admin created successfully",
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "store_id": vendor_data.store_id,
+            "store_name": store["name"]
+        }
+    }
+
+@router.get("/vendor-admins")
+async def list_vendor_admins(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    List all vendor admins for the tenant (Tenant Admin only)
+    """
+    await require_role(current_user, ["tenant_admin"])
+    
+    tenant_id = current_user["tenant_id"]
+    
+    vendors = await db.users.find(
+        {"role": "vendor", "tenant_id": tenant_id},
+        {"_id": 0, "password": 0}
+    ).to_list(100)
+    
+    # Get store names
+    for vendor in vendors:
+        if vendor.get("store_id"):
+            store = await db.stores.find_one({"id": vendor["store_id"]}, {"_id": 0, "name": 1})
+            if store:
+                vendor["store_name"] = store["name"]
+    
+    return vendors

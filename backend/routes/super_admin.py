@@ -476,3 +476,85 @@ async def process_payout(
             await db.wallet_transactions.insert_one(transaction_dict)
     
     return {"success": True, "message": "Payout processed"}
+
+
+# ==================== TENANT ADMIN MANAGEMENT ====================
+
+from pydantic import BaseModel, EmailStr
+from utils.helpers import get_password_hash
+
+class TenantAdminCreate(BaseModel):
+    tenant_id: str
+    name: str
+    email: EmailStr
+    password: str
+
+@router.post("/tenant-admins")
+async def create_tenant_admin(
+    admin_data: TenantAdminCreate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Create Tenant Admin with username/password (Super Admin only)
+    """
+    await require_role(current_user, ["super_admin"])
+    
+    # Check if tenant exists
+    tenant = await db.tenants.find_one({"id": admin_data.tenant_id}, {"_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Check if email already exists
+    existing_user = await db.users.find_one({"email": admin_data.email}, {"_id": 0})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already exists")
+    
+    # Create tenant admin user
+    from models.user import User
+    user = User(
+        tenant_id=admin_data.tenant_id,
+        name=admin_data.name,
+        email=admin_data.email,
+        phone="",  # Optional for admin users
+        role="tenant_admin"
+    )
+    
+    user_dict = user.model_dump()
+    user_dict["password"] = get_password_hash(admin_data.password)
+    user_dict["created_at"] = user_dict["created_at"].isoformat()
+    user_dict["updated_at"] = user_dict["updated_at"].isoformat()
+    
+    await db.users.insert_one(user_dict)
+    
+    return {
+        "success": True,
+        "message": "Tenant Admin created successfully",
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "tenant_id": user.tenant_id
+        }
+    }
+
+@router.get("/tenant-admins")
+async def list_tenant_admins(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    tenant_id: str = None
+):
+    """
+    List all tenant admins (Super Admin only)
+    """
+    await require_role(current_user, ["super_admin"])
+    
+    query = {"role": "tenant_admin"}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    admins = await db.users.find(query, {"_id": 0, "password": 0}).to_list(100)
+    
+    return admins
+

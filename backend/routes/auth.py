@@ -162,3 +162,67 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user_mi
         user_doc["updated_at"] = datetime.fromisoformat(user_doc["updated_at"])
     
     return user_doc
+
+
+from pydantic import BaseModel
+from utils.helpers import verify_password, get_password_hash
+
+class UsernamePasswordLogin(BaseModel):
+    username: str
+    password: str
+
+@router.post("/login", response_model=LoginResponse)
+async def login_with_password(request: UsernamePasswordLogin, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Login with username and password (for Super Admin, Tenant Admin, Vendor Admin)
+    """
+    # Find user by email (using email as username)
+    user_doc = await db.users.find_one({"email": request.username}, {"_id": 0})
+    
+    if not user_doc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+    
+    # Check if user has password (admins only)
+    if not user_doc.get("password"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="This account uses OTP login"
+        )
+    
+    # Verify password
+    if not verify_password(request.password, user_doc["password"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+    
+    # Get tenant info if user has tenant_id
+    tenant_doc = None
+    if user_doc.get("tenant_id"):
+        tenant_doc = await db.tenants.find_one({"id": user_doc["tenant_id"]}, {"_id": 0})
+    
+    # Create JWT token
+    token_data = {
+        "user_id": user_doc["id"],
+        "email": user_doc["email"],
+        "role": user_doc["role"],
+        "tenant_id": user_doc.get("tenant_id")
+    }
+    
+    access_token = create_access_token(token_data)
+    
+    # Convert datetime fields
+    if isinstance(user_doc.get("created_at"), str):
+        user_doc["created_at"] = datetime.fromisoformat(user_doc["created_at"])
+    if isinstance(user_doc.get("updated_at"), str):
+        user_doc["updated_at"] = datetime.fromisoformat(user_doc["updated_at"])
+    
+    return LoginResponse(
+        access_token=access_token,
+        user=User(**user_doc),
+        tenant=tenant_doc
+    )
+
