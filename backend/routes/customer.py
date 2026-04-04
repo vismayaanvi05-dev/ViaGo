@@ -410,6 +410,9 @@ async def update_cart_item(
     
     cart["updated_at"] = datetime.utcnow().isoformat()
     
+    # Remove _id before update to avoid serialization issues
+    cart.pop("_id", None)
+    
     await db.carts.update_one(
         {"user_id": user_id},
         {"$set": cart}
@@ -950,6 +953,9 @@ async def place_order(
     if not address:
         raise HTTPException(status_code=404, detail="Address not found")
     
+    # Remove _id from address before storing in order
+    address.pop("_id", None)
+    
     # Get tenant settings
     settings = await db.tenant_settings.find_one({"tenant_id": store["tenant_id"]})
     if not settings:
@@ -1183,6 +1189,10 @@ async def get_order_tracking(
     order = await db.orders.find_one({"id": order_id, "customer_id": user_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Remove _id from nested delivery_address if present
+    if order.get("delivery_address") and isinstance(order["delivery_address"], dict):
+        order["delivery_address"].pop("_id", None)
     
     # Get order items
     items = await db.order_items.find({"order_id": order_id}, {"_id": 0}).to_list(100)
