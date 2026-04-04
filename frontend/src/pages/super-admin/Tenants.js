@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit, Building2, Calendar } from 'lucide-react';
+import { Plus, Edit, Building2, Calendar, Trash2, Power, Pause } from 'lucide-react';
 
 const Tenants = () => {
   const { toast } = useToast();
@@ -134,6 +134,45 @@ const Tenants = () => {
   const openAssignSubscription = (tenant) => {
     setSelectedTenant(tenant);
     setSubscriptionDialogOpen(true);
+  };
+
+  const handleToggleStatus = async (tenantId, currentStatus) => {
+    try {
+      const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+      await superAdminAPI.updateTenant(tenantId, { status: newStatus });
+      toast({ 
+        title: "Success", 
+        description: `Tenant ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully` 
+      });
+      fetchTenants();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to update tenant status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteTenant = async (tenantId, tenantName) => {
+    if (!window.confirm(`Are you sure you want to delete tenant "${tenantName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await superAdminAPI.deleteTenant(tenantId);
+      toast({ 
+        title: "Success", 
+        description: "Tenant deleted successfully" 
+      });
+      fetchTenants();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to delete tenant",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {
@@ -319,9 +358,28 @@ const Tenants = () => {
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-xl">{tenant.name}</CardTitle>
-                  <Button size="sm" variant="ghost" onClick={() => openEditTenant(tenant)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => openEditTenant(tenant)} title="Edit">
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => handleToggleStatus(tenant.id, tenant.status)}
+                      title={tenant.status === 'active' ? 'Deactivate' : 'Activate'}
+                    >
+                      <Power className={`h-4 w-4 ${tenant.status === 'active' ? 'text-green-600' : 'text-gray-400'}`} />
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => handleDeleteTenant(tenant.id, tenant.name)}
+                      title="Delete"
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">

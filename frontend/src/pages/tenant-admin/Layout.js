@@ -9,7 +9,8 @@ import {
   BarChart3, 
   LogOut,
   MenuSquare,
-  Home
+  Home,
+  Users
 } from 'lucide-react';
 
 const TenantAdminLayout = () => {
@@ -19,7 +20,7 @@ const TenantAdminLayout = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/admin-login');
   };
 
   const menuItems = [
