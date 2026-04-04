@@ -115,7 +115,7 @@ const EnhancedCreateTenant = () => {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Business Name *</Label>
+                  <Label>Tenant Name *</Label>
                   <Input
                     value={formData.name}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
@@ -141,23 +141,42 @@ const EnhancedCreateTenant = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Contact Email *</Label>
+                  <Label>Business Name *</Label>
                   <Input
-                    type="email"
-                    value={formData.contact_email}
-                    onChange={(e) => setFormData({...formData, contact_email: e.target.value})}
-                    placeholder="contact@business.com"
+                    value={formData.business_name}
+                    onChange={(e) => setFormData({...formData, business_name: e.target.value})}
+                    placeholder="Official business name"
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Contact Phone *</Label>
+                  <Label>Mobile Number *</Label>
                   <Input
                     type="tel"
-                    value={formData.contact_phone}
-                    onChange={(e) => setFormData({...formData, contact_phone: e.target.value})}
+                    value={formData.mobile_number}
+                    onChange={(e) => setFormData({...formData, mobile_number: e.target.value})}
                     placeholder="9876543210"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Address *</Label>
+                  <Input
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    placeholder="Business address"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Town/City *</Label>
+                  <Input
+                    value={formData.town}
+                    onChange={(e) => setFormData({...formData, town: e.target.value})}
+                    placeholder="City name"
                     required
                   />
                 </div>

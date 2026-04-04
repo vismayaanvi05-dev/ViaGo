@@ -7,7 +7,7 @@ from models.monetization import (
     Wallet, WalletTransaction, Payout, PayoutCreate, PayoutUpdate
 )
 from middleware.auth import get_current_user, require_role
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 import uuid
 
@@ -67,19 +67,24 @@ async def create_tenant_enhanced(
     """
     await require_role(current_user, ["super_admin"])
     
-    # Create tenant
+    # Create tenant with all new fields
     tenant = Tenant(
         name=tenant_data["name"],
         business_type=tenant_data.get("business_type", "multi_vendor"),
-        active_modules=tenant_data.get("active_modules", ["food"])
+        active_modules=tenant_data.get("active_modules", ["food"]),
+        mobile_number=tenant_data.get("mobile_number"),
+        business_name=tenant_data.get("business_name"),
+        address=tenant_data.get("address"),
+        town=tenant_data.get("town")
     )
     tenant_dict = tenant.model_dump()
     tenant_dict["created_at"] = tenant_dict["created_at"].isoformat()
     tenant_dict["updated_at"] = tenant_dict["updated_at"].isoformat()
-    tenant_dict["contact_email"] = tenant_data.get("contact_email", "")
-    tenant_dict["contact_phone"] = tenant_data.get("contact_phone", "")
     
     await db.tenants.insert_one(tenant_dict)
+    
+    # Remove MongoDB _id before returning
+    tenant_dict.pop("_id", None)
     
     # Create tenant feature configuration
     feature_config = {
@@ -100,6 +105,9 @@ async def create_tenant_enhanced(
     }
     
     await db.tenant_feature_configs.insert_one(feature_config)
+    
+    # Remove MongoDB _id before returning
+    feature_config.pop("_id", None)
     
     # Create tenant settings
     settings = TenantSettings(tenant_id=tenant.id)
