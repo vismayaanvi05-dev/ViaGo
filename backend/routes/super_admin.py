@@ -586,6 +586,10 @@ async def update_tenant_admin(
     if update_data.get("password"):
         update_fields["password"] = get_password_hash(update_data["password"])
     
+    # Handle is_active boolean from frontend and convert to status string for DB
+    if "is_active" in update_data:
+        update_fields["status"] = "active" if update_data["is_active"] else "inactive"
+    
     if update_fields:
         update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.users.update_one({"id": admin_id}, {"$set": update_fields})
@@ -675,6 +679,10 @@ async def list_tenant_admins(
         query["tenant_id"] = tenant_id
     
     admins = await db.users.find(query, {"_id": 0, "password": 0}).to_list(100)
+    
+    # Transform status string to is_active boolean for frontend compatibility
+    for admin in admins:
+        admin["is_active"] = admin.get("status", "active") == "active"
     
     return admins
 
