@@ -320,7 +320,7 @@ async def assign_subscription_to_tenant(
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
-    Assign subscription plan to tenant
+    Assign subscription plan to tenant (creates new or updates existing active subscription)
     """
     await require_role(current_user, ["super_admin"])
     
@@ -335,18 +335,54 @@ async def assign_subscription_to_tenant(
         if not plan:
             raise HTTPException(status_code=404, detail="Subscription plan not found")
     
-    subscription = TenantSubscription(**subscription_data.model_dump())
-    subscription_dict = subscription.model_dump()
-    subscription_dict["start_date"] = subscription_dict["start_date"].isoformat()
-    if subscription_dict.get("end_date"):
-        subscription_dict["end_date"] = subscription_dict["end_date"].isoformat()
-    if subscription_dict.get("next_billing_date"):
-        subscription_dict["next_billing_date"] = subscription_dict["next_billing_date"].isoformat()
-    subscription_dict["created_at"] = subscription_dict["created_at"].isoformat()
-    subscription_dict["updated_at"] = subscription_dict["updated_at"].isoformat()
+    # Check if tenant already has an active subscription
+    existing_subscription = await db.tenant_subscriptions.find_one(
+        {"tenant_id": subscription_data.tenant_id, "status": "active"}
+    )
     
-    await db.tenant_subscriptions.insert_one(subscription_dict)
-    return subscription
+    if existing_subscription:
+        # Update existing subscription
+        update_data = subscription_data.model_dump(exclude={"tenant_id"})
+        update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        await db.tenant_subscriptions.update_one(
+            {"id": existing_subscription["id"]},
+            {"$set": update_data}
+        )
+        
+        # Fetch and return updated subscription
+        updated_sub = await db.tenant_subscriptions.find_one(
+            {"id": existing_subscription["id"]},
+            {"_id": 0}
+        )
+        
+        # Convert datetime strings
+        if isinstance(updated_sub.get("start_date"), str):
+            updated_sub["start_date"] = datetime.fromisoformat(updated_sub["start_date"])
+        if updated_sub.get("end_date") and isinstance(updated_sub["end_date"], str):
+            updated_sub["end_date"] = datetime.fromisoformat(updated_sub["end_date"])
+        if updated_sub.get("next_billing_date") and isinstance(updated_sub["next_billing_date"], str):
+            updated_sub["next_billing_date"] = datetime.fromisoformat(updated_sub["next_billing_date"])
+        if isinstance(updated_sub.get("created_at"), str):
+            updated_sub["created_at"] = datetime.fromisoformat(updated_sub["created_at"])
+        if isinstance(updated_sub.get("updated_at"), str):
+            updated_sub["updated_at"] = datetime.fromisoformat(updated_sub["updated_at"])
+        
+        return updated_sub
+    else:
+        # Create new subscription
+        subscription = TenantSubscription(**subscription_data.model_dump())
+        subscription_dict = subscription.model_dump()
+        subscription_dict["start_date"] = subscription_dict["start_date"].isoformat()
+        if subscription_dict.get("end_date"):
+            subscription_dict["end_date"] = subscription_dict["end_date"].isoformat()
+        if subscription_dict.get("next_billing_date"):
+            subscription_dict["next_billing_date"] = subscription_dict["next_billing_date"].isoformat()
+        subscription_dict["created_at"] = subscription_dict["created_at"].isoformat()
+        subscription_dict["updated_at"] = subscription_dict["updated_at"].isoformat()
+        
+        await db.tenant_subscriptions.insert_one(subscription_dict)
+        return subscription
 
 @router.get("/tenant-subscriptions/{tenant_id}", response_model=TenantSubscription)
 async def get_tenant_subscription(

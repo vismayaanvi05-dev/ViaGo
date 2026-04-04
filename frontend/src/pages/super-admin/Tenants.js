@@ -105,6 +105,33 @@ const Tenants = () => {
           status: tenantForm.status
         };
         await superAdminAPI.updateTenant(editingTenant.id, updateData);
+        
+        // Handle subscription update if checkbox is checked
+        if (tenantForm.assign_subscription) {
+          const subscriptionData = {
+            tenant_id: editingTenant.id,
+            plan_id: tenantForm.plan_id,
+            pricing_model: tenantForm.pricing_model,
+            commission_percentage: tenantForm.commission_percentage
+          };
+          
+          try {
+            await superAdminAPI.assignSubscription(subscriptionData);
+          } catch (subError) {
+            // If subscription assignment fails, still show tenant update success
+            console.error('Subscription update failed:', subError);
+            toast({
+              title: "Partial Success",
+              description: "Tenant updated but subscription update failed",
+              variant: "destructive",
+            });
+            setDialogOpen(false);
+            resetTenantForm();
+            fetchTenants();
+            return;
+          }
+        }
+        
         toast({ title: "Success", description: "Tenant updated successfully" });
       } else {
         await superAdminAPI.createTenant(tenantForm);
