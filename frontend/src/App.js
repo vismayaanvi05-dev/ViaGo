@@ -7,10 +7,9 @@ import { Toaster } from '@/components/ui/toaster';
 
 // Pages
 import Login from './pages/Login';
-import Restaurants from './pages/customer/Restaurants';
-import RestaurantMenu from './pages/customer/RestaurantMenu';
-import Checkout from './pages/customer/Checkout';
-import Orders from './pages/customer/Orders';
+import AdminLogin from './pages/AdminLogin';
+
+// Customer routes removed - Customer app is mobile-only
 
 // Tenant Admin
 import TenantAdminLayout from './pages/tenant-admin/Layout';
@@ -62,40 +61,16 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/admin-login" element={
+            <AdminLogin 
+              title="Admin Login" 
+              description="Super Admin, Tenant Admin, or Vendor Admin" 
+              redirectPath="/"
+              colorScheme="blue"
+            />
+          } />
           
-          {/* Customer Routes */}
-          <Route
-            path="/customer"
-            element={
-              <ProtectedRoute allowedRoles={['customer']}>
-                <Restaurants />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/customer/restaurant/:id"
-            element={
-              <ProtectedRoute allowedRoles={['customer']}>
-                <RestaurantMenu />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/customer/checkout"
-            element={
-              <ProtectedRoute allowedRoles={['customer']}>
-                <Checkout />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/customer/orders"
-            element={
-              <ProtectedRoute allowedRoles={['customer']}>
-                <Orders />
-              </ProtectedRoute>
-            }
-          />
+          {/* Customer routes removed - Customer app is mobile-only */}
           
           {/* Tenant Admin Routes */}
           <Route
