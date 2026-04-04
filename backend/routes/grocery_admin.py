@@ -10,9 +10,12 @@ from models.grocery import (
     InventoryTransaction, InventoryTransactionCreate, StockUpdate
 )
 from middleware.auth import get_current_user, require_role, verify_tenant_access, get_tenant_id
-from database import get_db
 
-router = APIRouter(prefix="/api/grocery-admin", tags=["Grocery Admin"])
+router = APIRouter(prefix="/grocery-admin", tags=["Grocery Admin"])
+
+def get_db():
+    from server import db
+    return db
 
 
 # ==================== CATEGORY ENDPOINTS ====================

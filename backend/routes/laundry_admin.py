@@ -12,9 +12,12 @@ from models.laundry import (
     TimeSlot, TimeSlotCreate
 )
 from middleware.auth import get_current_user, require_role, verify_tenant_access, get_tenant_id
-from database import get_db
 
-router = APIRouter(prefix="/api/laundry-admin", tags=["Laundry Admin"])
+router = APIRouter(prefix="/laundry-admin", tags=["Laundry Admin"])
+
+def get_db():
+    from server import db
+    return db
 
 
 # ==================== SERVICE ENDPOINTS ====================

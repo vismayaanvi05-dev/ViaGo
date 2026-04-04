@@ -38,6 +38,15 @@ import GroceryProducts from './pages/grocery-admin/Products';
 import GroceryCategories from './pages/grocery-admin/Categories';
 import GroceryInventory from './pages/grocery-admin/Inventory';
 
+// Laundry Admin
+import LaundryAdminLayout from './pages/laundry-admin/Layout';
+import LaundryDashboard from './pages/laundry-admin/Dashboard';
+import LaundryServices from './pages/laundry-admin/Services';
+import LaundryItems from './pages/laundry-admin/Items';
+import LaundryPricing from './pages/laundry-admin/Pricing';
+import LaundryOrders from './pages/laundry-admin/Orders';
+import LaundryTimeSlots from './pages/laundry-admin/TimeSlots';
+
 
 // Super Admin
 import SuperAdminLayout from './pages/super-admin/Layout';
@@ -161,6 +170,51 @@ function App() {
             <Route path="orders" element={<VendorOrders />} />
             <Route path="analytics" element={<VendorAnalytics />} />
             <Route path="settings" element={<VendorSettings />} />
+          </Route>
+
+          {/* ==================== GROCERY ADMIN ROUTES ==================== */}
+          <Route path="/grocery-admin" element={<ProtectedRoute allowedRoles={['tenant_admin']}><GroceryAdminLayout /></ProtectedRoute>}>
+            <Route index element={<GroceryDashboard />} />
+            <Route path="products" element={<GroceryProducts />} />
+            <Route path="categories" element={<GroceryCategories />} />
+            <Route path="inventory" element={<GroceryInventory />} />
+            <Route 
+              path="orders" 
+              element={
+                <div className="p-8">
+                  <h1 className="text-3xl font-bold">Grocery Orders</h1>
+                  <p className="text-gray-600 mt-2">Coming soon...</p>
+                </div>
+              } 
+            />
+            <Route 
+              path="settings" 
+              element={
+                <div className="p-8">
+                  <h1 className="text-3xl font-bold">Grocery Settings</h1>
+                  <p className="text-gray-600 mt-2">Coming soon...</p>
+                </div>
+              } 
+            />
+          </Route>
+
+          {/* ==================== LAUNDRY ADMIN ROUTES ==================== */}
+          <Route path="/laundry-admin" element={<ProtectedRoute allowedRoles={['tenant_admin']}><LaundryAdminLayout /></ProtectedRoute>}>
+            <Route index element={<LaundryDashboard />} />
+            <Route path="services" element={<LaundryServices />} />
+            <Route path="items" element={<LaundryItems />} />
+            <Route path="pricing" element={<LaundryPricing />} />
+            <Route path="orders" element={<LaundryOrders />} />
+            <Route path="time-slots" element={<LaundryTimeSlots />} />
+            <Route 
+              path="settings" 
+              element={
+                <div className="p-8">
+                  <h1 className="text-3xl font-bold">Laundry Settings</h1>
+                  <p className="text-gray-600 mt-2">Coming soon...</p>
+                </div>
+              } 
+            />
           </Route>
           
           {/* Delivery Partner Routes */}
