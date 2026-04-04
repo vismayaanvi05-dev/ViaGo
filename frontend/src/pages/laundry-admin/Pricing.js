@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { laundryAPI } from '../../api/client';
+import { laundryAPI, tenantAdminAPI } from '../../api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ const LaundryPricing = () => {
   const [pricing, setPricing] = useState([]);
   const [services, setServices] = useState([]);
   const [items, setItems] = useState([]);
+  const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPricing, setEditingPricing] = useState(null);
@@ -33,14 +34,21 @@ const LaundryPricing = () => {
 
   const fetchData = async () => {
     try {
-      const [pricingRes, servicesRes, itemsRes] = await Promise.all([
+      const [pricingRes, servicesRes, itemsRes, storesRes] = await Promise.all([
         laundryAPI.getPricing({}),
         laundryAPI.getServices({}),
-        laundryAPI.getItems({})
+        laundryAPI.getItems({}),
+        tenantAdminAPI.getStores({})
       ]);
       setPricing(pricingRes.data);
       setServices(servicesRes.data);
       setItems(itemsRes.data);
+      setStores(storesRes.data);
+      
+      // Auto-select first store if available
+      if (storesRes.data.length > 0 && !pricingForm.store_id) {
+        setPricingForm(prev => ({ ...prev, store_id: storesRes.data[0].id }));
+      }
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to load data', variant: 'destructive' });
     } finally {
@@ -74,15 +82,14 @@ const LaundryPricing = () => {
       service_id: p.service_id,
       item_id: p.item_id,
       store_id: p.store_id || '',
-      price_per_item: p.price_per_item,
-      price_per_kg: p.price_per_kg,
+      price: p.price,
       pricing_type: p.pricing_type
     });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
-    setPricingForm({ service_id: '', item_id: '', store_id: '', price_per_item: 0, price_per_kg: 0, pricing_type: 'per_item' });
+    setPricingForm({ service_id: '', item_id: '', store_id: '', price: 0, pricing_type: 'per_item' });
     setEditingPricing(null);
   };
 
@@ -104,6 +111,16 @@ const LaundryPricing = () => {
               <DialogTitle>{editingPricing ? 'Edit Pricing' : 'Add Pricing'}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Store *</Label>
+                <Select value={pricingForm.store_id} onValueChange={(value) => setPricingForm({...pricingForm, store_id: value})}>
+                  <SelectTrigger><SelectValue placeholder="Select store" /></SelectTrigger>
+                  <SelectContent>
+                    {stores.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <Label>Service *</Label>
                 <Select value={pricingForm.service_id} onValueChange={(value) => setPricingForm({...pricingForm, service_id: value})}>
@@ -138,14 +155,14 @@ const LaundryPricing = () => {
               {pricingForm.pricing_type === 'per_item' && (
                 <div className="space-y-2">
                   <Label>Price Per Item *</Label>
-                  <Input type="number" step="0.01" value={pricingForm.price_per_item} onChange={(e) => setPricingForm({...pricingForm, price_per_item: parseFloat(e.target.value)})} required />
+                  <Input type="number" step="0.01" value={pricingForm.price} onChange={(e) => setPricingForm({...pricingForm, price: parseFloat(e.target.value)})} required />
                 </div>
               )}
 
               {pricingForm.pricing_type === 'per_kg' && (
                 <div className="space-y-2">
                   <Label>Price Per Kg *</Label>
-                  <Input type="number" step="0.01" value={pricingForm.price_per_kg} onChange={(e) => setPricingForm({...pricingForm, price_per_kg: parseFloat(e.target.value)})} required />
+                  <Input type="number" step="0.01" value={pricingForm.price} onChange={(e) => setPricingForm({...pricingForm, price: parseFloat(e.target.value)})} required />
                 </div>
               )}
 
@@ -181,7 +198,7 @@ const LaundryPricing = () => {
                     <td className="p-3">{getItemName(p.item_id)}</td>
                     <td className="p-3">{p.pricing_type === 'per_item' ? 'Per Item' : 'Per Kg'}</td>
                     <td className="p-3 font-semibold">
-                      ₹{p.pricing_type === 'per_item' ? p.price_per_item : p.price_per_kg}
+                      ₹{p.price}
                       {p.pricing_type === 'per_kg' && '/kg'}
                     </td>
                     <td className="p-3">

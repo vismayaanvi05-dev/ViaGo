@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { laundryAPI } from '../../api/client';
+import { laundryAPI, tenantAdminAPI } from '../../api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Plus, Clock } from 'lucide-react';
 const LaundryTimeSlots = () => {
   const { toast } = useToast();
   const [timeSlots, setTimeSlots] = useState([]);
+  const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   
@@ -29,8 +30,17 @@ const LaundryTimeSlots = () => {
 
   const fetchTimeSlots = async () => {
     try {
-      const res = await laundryAPI.getTimeSlots({});
-      setTimeSlots(res.data);
+      const [slotsRes, storesRes] = await Promise.all([
+        laundryAPI.getTimeSlots({}),
+        tenantAdminAPI.getStores({})
+      ]);
+      setTimeSlots(slotsRes.data);
+      setStores(storesRes.data);
+      
+      // Auto-select first store if available
+      if (storesRes.data.length > 0 && !slotForm.store_id) {
+        setSlotForm(prev => ({ ...prev, store_id: storesRes.data[0].id }));
+      }
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to load time slots', variant: 'destructive' });
     } finally {
@@ -72,6 +82,14 @@ const LaundryTimeSlots = () => {
               <DialogTitle>Add Time Slot</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Store *</Label>
+                <select className="w-full border rounded p-2" value={slotForm.store_id} onChange={(e) => setSlotForm({...slotForm, store_id: e.target.value})} required>
+                  <option value="">Select store</option>
+                  {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+
               <div className="space-y-2">
                 <Label>Day of Week *</Label>
                 <select className="w-full border rounded p-2" value={slotForm.days_of_week[0]} onChange={(e) => setSlotForm({...slotForm, days_of_week: [parseInt(e.target.value)]})}>
