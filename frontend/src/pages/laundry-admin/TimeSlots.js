@@ -15,7 +15,8 @@ const LaundryTimeSlots = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   
   const [slotForm, setSlotForm] = useState({
-    day_of_week: 'monday',
+    store_id: '',
+    days_of_week: [0],
     start_time: '',
     end_time: '',
     slot_type: 'pickup',
@@ -46,12 +47,14 @@ const LaundryTimeSlots = () => {
       resetForm();
       fetchTimeSlots();
     } catch (error) {
-      toast({ title: 'Error', description: error.response?.data?.detail || 'Operation failed', variant: 'destructive' });
+      const errorMsg = error.response?.data?.detail;
+      const displayMsg = typeof errorMsg === 'string' ? errorMsg : errorMsg?.[0]?.msg || 'Operation failed';
+      toast({ title: 'Error', description: displayMsg, variant: 'destructive' });
     }
   };
 
   const resetForm = () => {
-    setSlotForm({ day_of_week: 'monday', start_time: '', end_time: '', slot_type: 'pickup', is_active: true });
+    setSlotForm({ store_id: '', days_of_week: [0], start_time: '', end_time: '', slot_type: 'pickup', is_active: true });
   };
 
   if (loading) return <div className="p-8">Loading...</div>;
@@ -71,14 +74,14 @@ const LaundryTimeSlots = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label>Day of Week *</Label>
-                <select className="w-full border rounded p-2" value={slotForm.day_of_week} onChange={(e) => setSlotForm({...slotForm, day_of_week: e.target.value})}>
-                  <option value="monday">Monday</option>
-                  <option value="tuesday">Tuesday</option>
-                  <option value="wednesday">Wednesday</option>
-                  <option value="thursday">Thursday</option>
-                  <option value="friday">Friday</option>
-                  <option value="saturday">Saturday</option>
-                  <option value="sunday">Sunday</option>
+                <select className="w-full border rounded p-2" value={slotForm.days_of_week[0]} onChange={(e) => setSlotForm({...slotForm, days_of_week: [parseInt(e.target.value)]})}>
+                  <option value="0">Monday</option>
+                  <option value="1">Tuesday</option>
+                  <option value="2">Wednesday</option>
+                  <option value="3">Thursday</option>
+                  <option value="4">Friday</option>
+                  <option value="5">Saturday</option>
+                  <option value="6">Sunday</option>
                 </select>
               </div>
 
@@ -120,7 +123,7 @@ const LaundryTimeSlots = () => {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Clock className="h-4 w-4" />
-                {slot.day_of_week?.toUpperCase()}
+                {slot.days_of_week && slot.days_of_week.length > 0 ? ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'][slot.days_of_week[0]] : 'N/A'}
               </CardTitle>
             </CardHeader>
             <CardContent>

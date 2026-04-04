@@ -21,6 +21,7 @@ const LaundryPricing = () => {
   const [pricingForm, setPricingForm] = useState({
     service_id: '',
     item_id: '',
+    store_id: '',
     price_per_item: 0,
     price_per_kg: 0,
     pricing_type: 'per_item'
@@ -61,7 +62,9 @@ const LaundryPricing = () => {
       resetForm();
       fetchData();
     } catch (error) {
-      toast({ title: 'Error', description: error.response?.data?.detail || 'Operation failed', variant: 'destructive' });
+      const errorMsg = error.response?.data?.detail;
+      const displayMsg = typeof errorMsg === 'string' ? errorMsg : errorMsg?.[0]?.msg || 'Operation failed';
+      toast({ title: 'Error', description: displayMsg, variant: 'destructive' });
     }
   };
 
@@ -70,6 +73,7 @@ const LaundryPricing = () => {
     setPricingForm({
       service_id: p.service_id,
       item_id: p.item_id,
+      store_id: p.store_id || '',
       price_per_item: p.price_per_item,
       price_per_kg: p.price_per_kg,
       pricing_type: p.pricing_type
@@ -78,7 +82,7 @@ const LaundryPricing = () => {
   };
 
   const resetForm = () => {
-    setPricingForm({ service_id: '', item_id: '', price_per_item: 0, price_per_kg: 0, pricing_type: 'per_item' });
+    setPricingForm({ service_id: '', item_id: '', store_id: '', price_per_item: 0, price_per_kg: 0, pricing_type: 'per_item' });
     setEditingPricing(null);
   };
 
