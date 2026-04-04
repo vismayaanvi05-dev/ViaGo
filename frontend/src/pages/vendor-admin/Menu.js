@@ -239,15 +239,15 @@ const VendorMenu = () => {
                 <div className="space-y-2">
                   <Label>Sub-category</Label>
                   <Select
-                    value={itemForm.sub_category_id || ''}
-                    onValueChange={(val) => setItemForm({ ...itemForm, sub_category_id: val })}
+                    value={itemForm.sub_category_id || 'none'}
+                    onValueChange={(val) => setItemForm({ ...itemForm, sub_category_id: val === 'none' ? '' : val })}
                     disabled={!itemForm.category_id}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select sub-category" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {categories.filter(c => c.parent_id === itemForm.category_id).map((cat) => (
                         <SelectItem key={cat.id} value={cat.id}>
                           {cat.name}

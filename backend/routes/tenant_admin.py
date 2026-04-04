@@ -115,15 +115,23 @@ async def list_my_stores(
 ):
     """
     List all stores for tenant
+    Vendors only see their assigned store
     """
-    await require_role(current_user, ["tenant_admin", "super_admin"])
+    await require_role(current_user, ["tenant_admin", "super_admin", "vendor"])
     tenant_id = await get_tenant_id(current_user)
     
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     
     query = {"tenant_id": tenant_id, "is_deleted": False}
-    if store_type:
+    
+    # If vendor, only return their assigned store
+    if current_user.get("role") == "vendor":
+        vendor_store_id = current_user.get("store_id")
+        if not vendor_store_id:
+            raise HTTPException(status_code=400, detail="Vendor must be assigned to a store")
+        query["id"] = vendor_store_id
+    elif store_type:
         query["store_type"] = store_type
     
     stores = await db.stores.find(query, {"_id": 0}).to_list(100)
@@ -262,16 +270,26 @@ async def list_categories(
 ):
     """
     List categories for tenant/store
+    Vendors can only see their store's categories
     """
-    await require_role(current_user, ["tenant_admin", "super_admin"])
+    await require_role(current_user, ["tenant_admin", "super_admin", "vendor"])
     tenant_id = await get_tenant_id(current_user)
     
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     
     query = {"tenant_id": tenant_id, "is_active": True}
-    if store_id:
+    
+    # If user is vendor, filter by their store_id
+    if current_user.get("role") == "vendor":
+        vendor_store_id = current_user.get("store_id")
+        if not vendor_store_id:
+            raise HTTPException(status_code=400, detail="Vendor must be assigned to a store")
+        query["store_id"] = vendor_store_id
+    elif store_id:
+        # Tenant admins can filter by specific store
         query["store_id"] = store_id
+        
     if module:
         query["module"] = module
     
@@ -349,12 +367,21 @@ async def create_item(
 ):
     """
     Create menu item/product
+    Vendors can only create items for their store
     """
-    await require_role(current_user, ["tenant_admin", "super_admin"])
+    await require_role(current_user, ["tenant_admin", "super_admin", "vendor"])
     tenant_id = await get_tenant_id(current_user)
     
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    
+    # If vendor, ensure they're creating item for their own store
+    if current_user.get("role") == "vendor":
+        vendor_store_id = current_user.get("store_id")
+        if not vendor_store_id:
+            raise HTTPException(status_code=400, detail="Vendor must be assigned to a store")
+        if item_data.store_id != vendor_store_id:
+            raise HTTPException(status_code=403, detail="Vendors can only create items for their own store")
     
     # Verify store access
     store = await db.stores.find_one({"id": item_data.store_id})
@@ -401,16 +428,26 @@ async def list_items(
 ):
     """
     List items for tenant
+    Vendors can only see their store's items
     """
-    await require_role(current_user, ["tenant_admin", "super_admin"])
+    await require_role(current_user, ["tenant_admin", "super_admin", "vendor"])
     tenant_id = await get_tenant_id(current_user)
     
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     
     query = {"tenant_id": tenant_id, "is_deleted": False}
-    if store_id:
+    
+    # If user is vendor, filter by their store_id
+    if current_user.get("role") == "vendor":
+        vendor_store_id = current_user.get("store_id")
+        if not vendor_store_id:
+            raise HTTPException(status_code=400, detail="Vendor must be assigned to a store")
+        query["store_id"] = vendor_store_id
+    elif store_id:
+        # Tenant admins can filter by specific store
         query["store_id"] = store_id
+        
     if category_id:
         query["category_id"] = category_id
     if module:
@@ -460,14 +497,21 @@ async def update_item(
 ):
     """
     Update item
+    Vendors can only update their store's items
     """
-    await require_role(current_user, ["tenant_admin", "super_admin"])
+    await require_role(current_user, ["tenant_admin", "super_admin", "vendor"])
     
     item = await db.items.find_one({"id": item_id, "is_deleted": False})
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     
     await verify_tenant_access(current_user, item["tenant_id"])
+    
+    # If vendor, ensure item belongs to their store
+    if current_user.get("role") == "vendor":
+        vendor_store_id = current_user.get("store_id")
+        if item.get("store_id") != vendor_store_id:
+            raise HTTPException(status_code=403, detail="Vendors can only update their own store's items")
     
     update_data = {k: v for k, v in item_data.model_dump(exclude_unset=True).items()}
     
@@ -504,14 +548,21 @@ async def delete_item(
 ):
     """
     Soft delete item
+    Vendors can only delete their store's items
     """
-    await require_role(current_user, ["tenant_admin", "super_admin"])
+    await require_role(current_user, ["tenant_admin", "super_admin", "vendor"])
     
     item = await db.items.find_one({"id": item_id})
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     
     await verify_tenant_access(current_user, item["tenant_id"])
+    
+    # If vendor, ensure item belongs to their store
+    if current_user.get("role") == "vendor":
+        vendor_store_id = current_user.get("store_id")
+        if item.get("store_id") != vendor_store_id:
+            raise HTTPException(status_code=403, detail="Vendors can only delete their own store's items")
     
     await db.items.update_one(
         {"id": item_id},

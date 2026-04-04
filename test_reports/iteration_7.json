@@ -1,0 +1,92 @@
+{
+  "summary": "Vendor Admin RBAC testing completed. Menu Items page works correctly (RBAC fix verified). Analytics page shows error due to orders endpoint not allowing vendor role. Fixed SelectItem empty value bug in Add Item dialog.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/tenant-admin/orders",
+        "issue": "Returns 403 for vendor role - Analytics page cannot fetch orders data",
+        "priority": "HIGH",
+        "fix_needed": "Add 'vendor' to allowed roles in tenant_admin_orders.py line 239 and filter by store_id"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "Dashboard data fetch",
+        "issue": "Vendor dashboard shows 403 errors in console when fetching orders for dashboard stats"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Analytics page",
+        "issue": "Shows error toast 'Access denied. Required roles: tenant_admin, super_admin' due to orders API 403",
+        "affected_selectors": ["Analytics page toast"]
+      },
+      {
+        "flow": "Dashboard stats",
+        "issue": "Menu Items count shows 0 on dashboard even though items exist (likely due to orders API failure affecting stats fetch)"
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_vendor_rbac.py",
+    "/app/test_reports/pytest/pytest_results_vendor_rbac.xml"
+  ],
+  "action_items": [
+    "CRITICAL: Add 'vendor' role to GET /api/tenant-admin/orders endpoint in /app/backend/routes/tenant_admin_orders.py line 239",
+    "Add store_id filtering for vendor role in orders endpoint (similar to items/categories)",
+    "Fix dashboard stats to handle orders API failure gracefully or add vendor role to orders endpoint"
+  ],
+  "critical_code_review_comments": [
+    "Orders endpoint at /app/backend/routes/tenant_admin_orders.py line 239 only allows ['tenant_admin', 'super_admin'] - needs 'vendor' role added",
+    "Dashboard component likely calls orders API which fails for vendors"
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/vendor-admin/Menu.js - Fixed SelectItem empty value bug (line 242-250)"
+  ],
+  "success_rate": {
+    "backend": "87.5% (7/8 tests passed)",
+    "frontend": "90% - Menu Items page fully working, Analytics page partially working"
+  },
+  "test_credentials": {
+    "vendor_admin": "vendor@test.com / vendor123",
+    "tenant_admin": "testadmin@test.com / test123"
+  },
+  "seed_data_creation": "Created and deleted TEST_Vendor_UI_Item_12345 during UI testing",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Vendor RBAC for Menu Items is FIXED and working. Orders endpoint still needs RBAC fix for vendor role. The fix pattern is the same as items/categories - add 'vendor' to allowed_roles and filter by store_id from JWT token.",
+  "test_results": {
+    "vendor_login": "PASS - vendor@test.com / vendor123 works",
+    "vendor_get_stores": "PASS - Returns only vendor's assigned store (Test Restaurant)",
+    "vendor_get_categories": "PASS - Returns categories for vendor's store",
+    "vendor_get_items": "PASS - Returns items for vendor's store",
+    "vendor_create_item": "PASS - Can create items for their store",
+    "vendor_update_item": "PASS - Can update/toggle availability",
+    "vendor_delete_item": "PASS - Can delete items",
+    "vendor_get_orders": "FAIL - 403 Access Denied",
+    "vendor_isolation": "PASS - Cannot see other stores' data",
+    "menu_page_ui": "PASS - No Access Denied error, all CRUD operations work",
+    "analytics_page_ui": "PARTIAL - Page loads but shows error toast due to orders API 403"
+  },
+  "bugs_fixed_by_testing_agent": [
+    {
+      "file": "/app/frontend/src/pages/vendor-admin/Menu.js",
+      "issue": "SelectItem with empty value '' caused React runtime error when opening Add Item dialog",
+      "fix": "Changed value='' to value='none' and updated onValueChange handler to convert 'none' back to empty string"
+    }
+  ],
+  "rca_of_remaining_issue": {
+    "issue": "Analytics page shows 'Access denied' error",
+    "root_cause": "GET /api/tenant-admin/orders endpoint in tenant_admin_orders.py only allows ['tenant_admin', 'super_admin'] roles, not 'vendor'",
+    "reproduction_steps": [
+      "1. Login as vendor@test.com / vendor123",
+      "2. Navigate to Analytics page",
+      "3. Observe error toast 'Access denied. Required roles: tenant_admin, super_admin'"
+    ],
+    "mitigation": "Add 'vendor' to allowed roles at line 239 and add store_id filtering similar to items endpoint"
+  }
+}

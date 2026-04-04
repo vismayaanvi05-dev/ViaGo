@@ -58,6 +58,13 @@ async def get_tenant_id(current_user: dict) -> Optional[str]:
     """
     return current_user.get("tenant_id")
 
+async def get_store_id(current_user: dict) -> Optional[str]:
+    """
+    Extract store_id from current user (for vendor role)
+    Returns None for non-vendor roles
+    """
+    return current_user.get("store_id")
+
 async def verify_tenant_access(current_user: dict, resource_tenant_id: str):
     """
     Verify that user has access to resource belonging to tenant

@@ -124,7 +124,8 @@ async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_
         "user_id": user_doc["id"],
         "phone": user_doc["phone"],
         "role": user_doc["role"],
-        "tenant_id": user_doc.get("tenant_id")
+        "tenant_id": user_doc.get("tenant_id"),
+        "store_id": user_doc.get("store_id")  # Include store_id for vendors
     }
     
     access_token = create_access_token(token_data)
@@ -211,7 +212,8 @@ async def login_with_password(request: UsernamePasswordLogin, db: AsyncIOMotorDa
         "user_id": user_doc["id"],
         "email": user_doc["email"],
         "role": user_doc["role"],
-        "tenant_id": user_doc.get("tenant_id")
+        "tenant_id": user_doc.get("tenant_id"),
+        "store_id": user_doc.get("store_id")  # Include store_id for vendors
     }
     
     access_token = create_access_token(token_data)
@@ -327,7 +329,8 @@ async def verify_email_otp(
         "user_id": user_doc["id"],
         "email": user_doc["email"],
         "role": user_doc["role"],
-        "tenant_id": user_doc.get("tenant_id")
+        "tenant_id": user_doc.get("tenant_id"),
+        "store_id": user_doc.get("store_id")  # Include store_id for vendors
     }
     
     access_token = create_access_token(token_data)
