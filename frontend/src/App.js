@@ -31,6 +31,14 @@ import VendorOrders from './pages/vendor-admin/Orders';
 import VendorAnalytics from './pages/vendor-admin/Analytics';
 import VendorSettings from './pages/vendor-admin/Settings';
 
+// Grocery Admin
+import GroceryAdminLayout from './pages/grocery-admin/Layout';
+import GroceryDashboard from './pages/grocery-admin/Dashboard';
+import GroceryProducts from './pages/grocery-admin/Products';
+import GroceryCategories from './pages/grocery-admin/Categories';
+import GroceryInventory from './pages/grocery-admin/Inventory';
+
+
 // Super Admin
 import SuperAdminLayout from './pages/super-admin/Layout';
 import SuperAdminDashboard from './pages/super-admin/Dashboard';
