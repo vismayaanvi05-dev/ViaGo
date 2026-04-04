@@ -38,6 +38,11 @@ const Tenants = () => {
     name: '',
     business_type: 'single_vendor',
     active_modules: ['food'],
+    // Subscription fields
+    assign_subscription: false,
+    plan_id: '',
+    pricing_model: 'subscription',
+    commission_percentage: 0,
   });
 
   const [subscriptionForm, setSubscriptionForm] = useState({
@@ -135,6 +140,10 @@ const Tenants = () => {
       name: '',
       business_type: 'single_vendor',
       active_modules: ['food'],
+      assign_subscription: false,
+      plan_id: '',
+      pricing_model: 'subscription',
+      commission_percentage: 0,
     });
     setEditingTenant(null);
   };
@@ -284,6 +293,90 @@ const Tenants = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Subscription Assignment Section */}
+              {!editingTenant && (
+                <>
+                  <div className="pt-4 border-t">
+                    <div className="flex items-center space-x-2 mb-4">
+                      <input
+                        type="checkbox"
+                        id="assign_subscription"
+                        checked={tenantForm.assign_subscription}
+                        onChange={(e) => setTenantForm({ ...tenantForm, assign_subscription: e.target.checked })}
+                        className="rounded"
+                      />
+                      <Label htmlFor="assign_subscription" className="font-semibold">
+                        Assign Subscription Now
+                      </Label>
+                    </div>
+
+                    {tenantForm.assign_subscription && (
+                      <div className="space-y-4 pl-6 border-l-2 border-blue-200">
+                        <div className="space-y-2">
+                          <Label htmlFor="pricing_model">Pricing Model *</Label>
+                          <Select
+                            value={tenantForm.pricing_model}
+                            onValueChange={(value) => setTenantForm({ ...tenantForm, pricing_model: value })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="subscription">Subscription Only</SelectItem>
+                              <SelectItem value="commission">Commission Only</SelectItem>
+                              <SelectItem value="hybrid">Hybrid (Subscription + Commission)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-gray-500">
+                            {tenantForm.pricing_model === 'subscription' && 'Fixed monthly/yearly fee'}
+                            {tenantForm.pricing_model === 'commission' && 'Pay per order commission'}
+                            {tenantForm.pricing_model === 'hybrid' && 'Fixed fee + commission per order'}
+                          </p>
+                        </div>
+
+                        {(tenantForm.pricing_model === 'subscription' || tenantForm.pricing_model === 'hybrid') && (
+                          <div className="space-y-2">
+                            <Label htmlFor="plan">Subscription Plan *</Label>
+                            <Select
+                              value={tenantForm.plan_id}
+                              onValueChange={(value) => setTenantForm({ ...tenantForm, plan_id: value })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a plan" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {plans.map((plan) => (
+                                  <SelectItem key={plan.id} value={plan.id}>
+                                    {plan.name} - ₹{plan.price}/{plan.billing_cycle}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        {(tenantForm.pricing_model === 'commission' || tenantForm.pricing_model === 'hybrid') && (
+                          <div className="space-y-2">
+                            <Label htmlFor="commission">Commission Percentage (%) *</Label>
+                            <Input
+                              id="commission"
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="100"
+                              value={tenantForm.commission_percentage}
+                              onChange={(e) => setTenantForm({ ...tenantForm, commission_percentage: parseFloat(e.target.value) || 0 })}
+                              placeholder="e.g., 10"
+                            />
+                            <p className="text-xs text-gray-500">Platform commission on each order</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
