@@ -696,3 +696,60 @@ async def list_vendor_admins(
                 vendor["store_name"] = store["name"]
     
     return vendors
+
+
+
+@router.put("/vendor-admins/{vendor_id}")
+async def update_vendor_admin(
+    vendor_id: str,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    password: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Update a vendor admin"""
+    await require_role(current_user, ["tenant_admin"])
+    tenant_id = await get_tenant_id(current_user)
+    
+    # Verify vendor admin belongs to this tenant
+    vendor = await db.users.find_one({"id": vendor_id, "tenant_id": tenant_id, "role": "vendor"}, {"_id": 0})
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor admin not found")
+    
+    # Build update data
+    update_data = {"updated_at": datetime.now().isoformat()}
+    if name:
+        update_data["name"] = name
+    if email:
+        update_data["email"] = email
+    if password:
+        from passlib.context import CryptContext
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        update_data["hashed_password"] = pwd_context.hash(password)
+    if status:
+        update_data["status"] = status
+    
+    await db.users.update_one({"id": vendor_id}, {"$set": update_data})
+    
+    return {"success": True, "message": "Vendor admin updated successfully"}
+
+@router.delete("/vendor-admins/{vendor_id}")
+async def delete_vendor_admin(
+    vendor_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Delete a vendor admin"""
+    await require_role(current_user, ["tenant_admin"])
+    tenant_id = await get_tenant_id(current_user)
+    
+    # Verify vendor admin belongs to this tenant
+    vendor = await db.users.find_one({"id": vendor_id, "tenant_id": tenant_id, "role": "vendor"}, {"_id": 0})
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor admin not found")
+    
+    await db.users.delete_one({"id": vendor_id})
+    
+    return {"success": True, "message": "Vendor admin deleted successfully"}

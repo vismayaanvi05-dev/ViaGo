@@ -166,11 +166,20 @@ const Tenants = () => {
 
   const openEditTenant = (tenant) => {
     setEditingTenant(tenant);
+    
+    // Get current subscription info
+    const currentSub = subscriptions[tenant.id];
+    
     setTenantForm({
       name: tenant.name,
       business_type: tenant.business_type,
       active_modules: tenant.active_modules,
       status: tenant.status || 'active',
+      // Subscription fields for editing
+      assign_subscription: !!currentSub,
+      plan_id: currentSub?.plan_id || '',
+      pricing_model: currentSub?.pricing_model || 'subscription',
+      commission_percentage: currentSub?.commission_percentage || 0,
     });
     setDialogOpen(true);
   };
@@ -325,23 +334,21 @@ const Tenants = () => {
               )}
 
               {/* Subscription Assignment Section */}
-              {!editingTenant && (
-                <>
-                  <div className="pt-4 border-t">
-                    <div className="flex items-center space-x-2 mb-4">
-                      <input
-                        type="checkbox"
-                        id="assign_subscription"
-                        checked={tenantForm.assign_subscription}
-                        onChange={(e) => setTenantForm({ ...tenantForm, assign_subscription: e.target.checked })}
-                        className="rounded"
-                      />
-                      <Label htmlFor="assign_subscription" className="font-semibold">
-                        Assign Subscription Now
-                      </Label>
-                    </div>
+              <div className="pt-4 border-t">
+                <div className="flex items-center space-x-2 mb-4">
+                  <input
+                    type="checkbox"
+                    id="assign_subscription"
+                    checked={tenantForm.assign_subscription}
+                    onChange={(e) => setTenantForm({ ...tenantForm, assign_subscription: e.target.checked })}
+                    className="rounded"
+                  />
+                  <Label htmlFor="assign_subscription" className="font-semibold">
+                    {editingTenant ? 'Update Subscription' : 'Assign Subscription Now'}
+                  </Label>
+                </div>
 
-                    {tenantForm.assign_subscription && (
+                {tenantForm.assign_subscription && (
                       <div className="space-y-4 pl-6 border-l-2 border-blue-200">
                         <div className="space-y-2">
                           <Label htmlFor="pricing_model">Pricing Model *</Label>
@@ -405,11 +412,12 @@ const Tenants = () => {
                       </div>
                     )}
                   </div>
-                </>
-              )}
 
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                <Button type="button" variant="outline" onClick={() => {
+                  setDialogOpen(false);
+                  resetTenantForm();
+                }}>
                   Cancel
                 </Button>
                 <Button type="submit">

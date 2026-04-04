@@ -133,8 +133,10 @@ export const tenantAdminAPI = {
   
 
   // Vendor Admin Management
-  createVendorAdmin: (data) => apiClient.post('/tenant-admin/vendor-admins', data),
   getVendorAdmins: () => apiClient.get('/tenant-admin/vendor-admins'),
+  createVendorAdmin: (data) => apiClient.post('/tenant-admin/vendor-admins', data),
+  updateVendorAdmin: (id, data) => apiClient.put(`/tenant-admin/vendor-admins/${id}`, data),
+  deleteVendorAdmin: (id) => apiClient.delete(`/tenant-admin/vendor-admins/${id}`),
 
   // Reports
   getSalesReport: (params) => apiClient.get('/tenant-admin/reports/sales', { params }),
