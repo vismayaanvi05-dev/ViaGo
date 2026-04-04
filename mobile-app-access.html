@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HyperServe Mobile App - Web Preview</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #8B5CF6;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #6B7280;
+            margin-bottom: 30px;
+        }
+        .option {
+            background: #F9FAFB;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 2px solid #E5E7EB;
+        }
+        .option h3 {
+            color: #1F2937;
+            margin-top: 0;
+        }
+        .btn {
+            display: inline-block;
+            background: #8B5CF6;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        .btn:hover {
+            background: #7C3AED;
+        }
+        .code {
+            background: #1F2937;
+            color: #10B981;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .steps {
+            list-style: none;
+            padding: 0;
+        }
+        .steps li {
+            padding: 8px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+        .steps li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #10B981;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 HyperServe Customer App</h1>
+        <p class="subtitle">Choose how you want to test the mobile app</p>
+
+        <div class="option">
+            <h3>📱 Option 1: Test on Phone (Best Experience)</h3>
+            <ul class="steps">
+                <li>Install <strong>Expo Go</strong> app from App Store/Play Store</li>
+                <li>Run this command in terminal:</li>
+            </ul>
+            <div class="code">cd /app/mobile-app && yarn start</div>
+            <ul class="steps">
+                <li>Scan QR code with Expo Go app</li>
+                <li>App loads in 30 seconds</li>
+            </ul>
+        </div>
+
+        <div class="option">
+            <h3>🌐 Option 2: Test in Browser (Quick Preview)</h3>
+            <p>Run the app in web browser (mobile-like experience):</p>
+            <div class="code">cd /app/mobile-app && yarn web</div>
+            <p>Then open: <code>http://localhost:19006</code></p>
+            <a href="http://localhost:19006" class="btn" target="_blank">Open Web Preview</a>
+        </div>
+
+        <div class="option">
+            <h3>🖥️ Option 3: Direct Terminal Access</h3>
+            <p>If you have terminal access, run:</p>
+            <div class="code">bash /app/mobile-app/launch.sh</div>
+            <p>This will start Expo and show you the QR code in terminal.</p>
+        </div>
+
+        <div class="option">
+            <h3>📖 Need Help?</h3>
+            <p>Check the detailed guides:</p>
+            <ul class="steps">
+                <li><code>/app/mobile-app/TESTING_GUIDE.md</code></li>
+                <li><code>/app/mobile-app/README.md</code></li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; color: #6B7280;">
+            <p><strong>Note:</strong> The QR code is generated when you run <code>yarn start</code></p>
+            <p>It cannot be pre-generated as it contains your local network address.</p>
+        </div>
+    </div>
+</body>
+</html>
