@@ -17,15 +17,9 @@ const MenuBuilder = () => {
   const [stores, setStores] = useState([]);
   const [selectedStore, setSelectedStore] = useState('');
   const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('all');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState(null);
-
-  // Category dialog
-  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState(null);
-  const [categoryForm, setCategoryForm] = useState({ name: '', description: '' });
 
   // Item dialog
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
@@ -51,7 +45,7 @@ const MenuBuilder = () => {
       fetchCategories();
       fetchItems();
     }
-  }, [selectedStore, selectedCategory]);
+  }, [selectedStore]);
 
   const fetchStores = async () => {
     try {
@@ -98,9 +92,6 @@ const MenuBuilder = () => {
         store_id: selectedStore,
         module: 'food'
       };
-      if (selectedCategory !== 'all') {
-        params.category_id = selectedCategory;
-      }
       
       const response = await tenantAdminAPI.getItems(params);
       setItems(response.data || []);
@@ -118,66 +109,6 @@ const MenuBuilder = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Category Management
-  const handleCreateCategory = async (e) => {
-    e.preventDefault();
-    try {
-      await tenantAdminAPI.createCategory({
-        ...categoryForm,
-        store_id: selectedStore,
-        module: 'food'
-      });
-      toast({ title: "Success", description: "Category created successfully" });
-      fetchCategories();
-      setCategoryDialogOpen(false);
-      resetCategoryForm();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.detail || "Failed to create category",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleUpdateCategory = async (e) => {
-    e.preventDefault();
-    try {
-      await tenantAdminAPI.updateCategory(editingCategory.id, categoryForm);
-      toast({ title: "Success", description: "Category updated successfully" });
-      fetchCategories();
-      setCategoryDialogOpen(false);
-      resetCategoryForm();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.detail || "Failed to update category",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDeleteCategory = async (categoryId) => {
-    if (window.confirm('Are you sure you want to delete this category?')) {
-      try {
-        await tenantAdminAPI.deleteCategory(categoryId);
-        toast({ title: "Success", description: "Category deleted successfully" });
-        fetchCategories();
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: error.response?.data?.detail || "Failed to delete category",
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
-  const resetCategoryForm = () => {
-    setCategoryForm({ name: '', description: '' });
-    setEditingCategory(null);
   };
 
   // Item Management
@@ -301,109 +232,6 @@ const MenuBuilder = () => {
 
   return (
     <div className="flex h-full">
-      {/* Left Sidebar - Categories */}
-      <div className="w-64 bg-white border-r p-4 overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-900">Categories</h3>
-          <Dialog open={categoryDialogOpen} onOpenChange={(open) => {
-            setCategoryDialogOpen(open);
-            if (!open) resetCategoryForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button size="sm" onClick={() => {
-                resetCategoryForm();
-                setCategoryDialogOpen(true);
-              }}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editingCategory ? 'Edit Category' : 'Add Category'}</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={editingCategory ? handleUpdateCategory : handleCreateCategory} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="cat-name">Category Name *</Label>
-                  <Input
-                    id="cat-name"
-                    value={categoryForm.name}
-                    onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cat-desc">Description</Label>
-                  <Textarea
-                    id="cat-desc"
-                    value={categoryForm.description}
-                    onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setCategoryDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit">
-                    {editingCategory ? 'Update' : 'Create'}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <div className="space-y-1">
-          <button
-            className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-              selectedCategory === 'all'
-                ? 'bg-orange-50 text-orange-600 font-medium'
-                : 'text-gray-700 hover:bg-gray-50'
-            }`}
-            onClick={() => setSelectedCategory('all')}
-          >
-            All Items
-          </button>
-          
-          {categories.map((category) => (
-            <div
-              key={category.id}
-              className={`flex items-center justify-between px-3 py-2 rounded-lg transition-colors ${
-                selectedCategory === category.id
-                  ? 'bg-orange-50 text-orange-600'
-                  : 'text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <button
-                className="flex-1 text-left"
-                onClick={() => setSelectedCategory(category.id)}
-              >
-                {category.name}
-              </button>
-              <div className="flex gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditingCategory(category);
-                    setCategoryForm({ name: category.name, description: category.description || '' });
-                    setCategoryDialogOpen(true);
-                  }}
-                >
-                  <Edit className="h-3 w-3" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleDeleteCategory(category.id)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Main Content - Items */}
       <div className="flex-1 p-8 overflow-y-auto">
         <div className="flex justify-between items-center mb-8">
