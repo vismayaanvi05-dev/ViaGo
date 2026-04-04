@@ -37,6 +37,10 @@ const AdminLogin = ({ title, description, redirectPath, colorScheme = "orange" }
         password
       });
       
+      // Store token and user
+      localStorage.setItem('token', response.data.access_token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      
       login(response.data.access_token, response.data.user);
       
       toast({
@@ -44,7 +48,17 @@ const AdminLogin = ({ title, description, redirectPath, colorScheme = "orange" }
         description: `Welcome ${response.data.user.name}!`,
       });
       
-      navigate(redirectPath);
+      // Redirect based on role
+      const role = response.data.user.role;
+      if (role === 'super_admin') {
+        navigate('/super-admin');
+      } else if (role === 'tenant_admin') {
+        navigate('/tenant-admin');
+      } else if (role === 'vendor') {
+        navigate('/vendor-admin');
+      } else {
+        navigate('/');
+      }
     } catch (error) {
       toast({
         title: "Login Failed",

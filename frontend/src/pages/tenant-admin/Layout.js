@@ -26,6 +26,7 @@ const TenantAdminLayout = () => {
     { path: '/tenant-admin', icon: Home, label: 'Dashboard' },
     { path: '/tenant-admin/settings', icon: Settings, label: 'Settings' },
     { path: '/tenant-admin/stores', icon: Store, label: 'Stores' },
+    { path: '/tenant-admin/vendors', icon: Users, label: 'Vendor Admins' },
     { path: '/tenant-admin/menu', icon: MenuSquare, label: 'Menu' },
     { path: '/tenant-admin/orders', icon: ShoppingBag, label: 'Orders' },
     { path: '/tenant-admin/reports', icon: BarChart3, label: 'Reports' },

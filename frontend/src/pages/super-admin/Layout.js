@@ -25,6 +25,7 @@ const SuperAdminLayout = () => {
   const menuItems = [
     { path: '/super-admin', icon: Home, label: 'Dashboard' },
     { path: '/super-admin/tenants', icon: Users, label: 'Tenants' },
+    { path: '/super-admin/tenant-admins', icon: Users, label: 'Create Tenant Admin' },
     { path: '/super-admin/plans', icon: CreditCard, label: 'Subscription Plans' },
     { path: '/super-admin/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/super-admin/payouts', icon: Wallet, label: 'Payouts' },

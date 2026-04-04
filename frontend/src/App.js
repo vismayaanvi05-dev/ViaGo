@@ -24,6 +24,7 @@ import SuperAdminLayout from './pages/super-admin/Layout';
 import SuperAdminDashboard from './pages/super-admin/Dashboard';
 import SuperAdminTenants from './pages/super-admin/Tenants';
 import SuperAdminPlans from './pages/super-admin/SubscriptionPlans';
+import CreateTenantAdmin from './pages/super-admin/CreateTenantAdmin';
 
 // Landing page
 const Home = () => {
@@ -86,6 +87,7 @@ function App() {
             <Route path="stores" element={<TenantStores />} />
             <Route path="menu" element={<MenuBuilder />} />
             <Route path="orders" element={<TenantOrders />} />
+            <Route path="vendors" element={<CreateVendorAdmin />} />
             <Route 
               path="reports" 
               element={
@@ -109,6 +111,7 @@ function App() {
             <Route index element={<SuperAdminDashboard />} />
             <Route path="tenants" element={<SuperAdminTenants />} />
             <Route path="plans" element={<SuperAdminPlans />} />
+            <Route path="tenant-admins" element={<CreateTenantAdmin />} />
             <Route 
               path="analytics" 
               element={

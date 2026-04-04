@@ -38,6 +38,9 @@ apiClient.interceptors.response.use(
 
 // ==================== AUTH APIs ====================
 export const authAPI = {
+
+  loginWithPassword: (username, password) => apiClient.post('/auth/login', { username, password }),
+
   sendOTP: (phone, role = 'customer') =>
     apiClient.post('/auth/send-otp', { phone, role }),
   
@@ -112,6 +115,11 @@ export const tenantAdminAPI = {
   getOrder: (id) => apiClient.get(`/tenant-admin/orders/${id}`),
   updateOrderStatus: (id, status) => apiClient.put(`/tenant-admin/orders/${id}/status`, null, { params: { status } }),
   
+
+  // Vendor Admin Management
+  createVendorAdmin: (data) => apiClient.post('/tenant-admin/vendor-admins', data),
+  getVendorAdmins: () => apiClient.get('/tenant-admin/vendor-admins'),
+
   // Reports
   getSalesReport: (params) => apiClient.get('/tenant-admin/reports/sales', { params }),
   getWalletReport: () => apiClient.get('/tenant-admin/reports/wallet'),
@@ -139,6 +147,11 @@ export const superAdminAPI = {
   getDashboard: () => apiClient.get('/super-admin/analytics/dashboard'),
   getTenantsRevenue: (params) => apiClient.get('/super-admin/analytics/tenants-revenue', { params }),
   
+
+  // Tenant Admin Management
+  createTenantAdmin: (data) => apiClient.post('/super-admin/tenant-admins', data),
+  getTenantAdmins: () => apiClient.get('/super-admin/tenant-admins'),
+
   // Payouts
   getPayouts: (params) => apiClient.get('/super-admin/payouts', { params }),
   processPayout: (id, data) => apiClient.put(`/super-admin/payouts/${id}`, data),
