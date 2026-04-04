@@ -4,13 +4,13 @@ from typing import List, Optional
 from datetime import datetime
 from uuid import uuid4
 
-from ..models.grocery import (
+from models.grocery import (
     GroceryCategory, GroceryCategoryCreate, GroceryCategoryUpdate,
     GroceryProduct, GroceryProductCreate, GroceryProductUpdate,
     InventoryTransaction, InventoryTransactionCreate, StockUpdate
 )
-from ..middleware.auth import get_current_user, require_role, verify_tenant_access, get_tenant_id
-from ..database import get_db
+from middleware.auth import get_current_user, require_role, verify_tenant_access, get_tenant_id
+from database import get_db
 
 router = APIRouter(prefix="/api/grocery-admin", tags=["Grocery Admin"])
 
