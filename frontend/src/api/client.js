@@ -210,4 +210,54 @@ export const vendorAPI = {
   updateSettings: (data) => tenantAdminAPI.updateSettings(data),
 };
 
+// ==================== GROCERY ADMIN APIs ====================
+export const groceryAPI = {
+  // Categories
+  getCategories: (params) => apiClient.get('/grocery-admin/categories', { params }),
+  createCategory: (data) => apiClient.post('/grocery-admin/categories', data),
+  updateCategory: (id, data) => apiClient.put(`/grocery-admin/categories/${id}`, data),
+  deleteCategory: (id) => apiClient.delete(`/grocery-admin/categories/${id}`),
+  
+  // Products
+  getProducts: (params) => apiClient.get('/grocery-admin/products', { params }),
+  createProduct: (data) => apiClient.post('/grocery-admin/products', data),
+  updateProduct: (id, data) => apiClient.put(`/grocery-admin/products/${id}`, data),
+  deleteProduct: (id) => apiClient.delete(`/grocery-admin/products/${id}`),
+  
+  // Inventory
+  updateStock: (data) => apiClient.post('/grocery-admin/inventory/update-stock', data),
+  getTransactions: (params) => apiClient.get('/grocery-admin/inventory/transactions', { params }),
+  getLowStockProducts: (params) => apiClient.get('/grocery-admin/inventory/low-stock', { params }),
+};
+
+// ==================== LAUNDRY ADMIN APIs ====================
+export const laundryAPI = {
+  // Services
+  getServices: (params) => apiClient.get('/laundry-admin/services', { params }),
+  createService: (data) => apiClient.post('/laundry-admin/services', data),
+  updateService: (id, data) => apiClient.put(`/laundry-admin/services/${id}`, data),
+  deleteService: (id) => apiClient.delete(`/laundry-admin/services/${id}`),
+  
+  // Items
+  getItems: (params) => apiClient.get('/laundry-admin/items', { params }),
+  createItem: (data) => apiClient.post('/laundry-admin/items', data),
+  updateItem: (id, data) => apiClient.put(`/laundry-admin/items/${id}`, data),
+  deleteItem: (id) => apiClient.delete(`/laundry-admin/items/${id}`),
+  
+  // Pricing
+  getPricing: (params) => apiClient.get('/laundry-admin/pricing', { params }),
+  createPricing: (data) => apiClient.post('/laundry-admin/pricing', data),
+  updatePricing: (id, data) => apiClient.put(`/laundry-admin/pricing/${id}`, data),
+  
+  // Orders
+  getOrders: (params) => apiClient.get('/laundry-admin/orders', { params }),
+  getOrder: (id) => apiClient.get(`/laundry-admin/orders/${id}`),
+  updateOrder: (id, data) => apiClient.put(`/laundry-admin/orders/${id}`, data),
+  
+  // Time Slots
+  getTimeSlots: (params) => apiClient.get('/laundry-admin/time-slots', { params }),
+  createTimeSlot: (data) => apiClient.post('/laundry-admin/time-slots', data),
+};
+
+
 export default apiClient;
