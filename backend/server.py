@@ -30,7 +30,6 @@ from routes.super_admin import router as super_admin_router
 from routes.tenant_admin import router as tenant_admin_router
 from routes.tenant_admin_orders import router as tenant_admin_orders_router
 from routes.customer import router as customer_router
-from routes.delivery import router as delivery_router
 from routes.delivery_partner import router as delivery_partner_router
 from routes.grocery_admin import router as grocery_admin_router
 from routes.laundry_admin import router as laundry_admin_router
@@ -59,7 +58,6 @@ app.include_router(super_admin_router, prefix="/api")
 app.include_router(tenant_admin_router, prefix="/api")
 app.include_router(tenant_admin_orders_router, prefix="/api")
 app.include_router(customer_router, prefix="/api")
-app.include_router(delivery_router, prefix="/api")
 app.include_router(delivery_partner_router, prefix="/api")
 app.include_router(grocery_admin_router, prefix="/api")
 app.include_router(laundry_admin_router, prefix="/api")

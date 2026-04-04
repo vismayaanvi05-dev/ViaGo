@@ -18,10 +18,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'QR Server Running' });
 });
 
-// Start Expo server in background
-console.log('🚀 Starting Expo Metro bundler...');
+// Start Expo server in background for DELIVERY APP
+console.log('🚀 Starting Expo Metro bundler for Delivery Partner App...');
+const deliveryAppPath = path.join(__dirname, '..', 'delivery-app');
 const expoProcess = spawn('yarn', ['start'], {
-  cwd: __dirname,
+  cwd: deliveryAppPath,
   stdio: 'inherit',
   detached: true
 });
@@ -31,8 +32,9 @@ expoProcess.unref();
 // Start Express server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ QR Code Server running on port ${PORT}`);
-  console.log(`📱 Open your preview URL to see the QR code!`);
+  console.log(`📱 Open your preview URL to see the Delivery Partner App QR code!`);
   console.log(`⏳ Wait 20 seconds for Expo to start...`);
+  console.log(`📍 Serving: /app/delivery-app`);
 });
 
 // Graceful shutdown
