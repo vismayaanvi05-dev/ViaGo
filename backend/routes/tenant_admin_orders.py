@@ -235,16 +235,26 @@ async def list_orders(
 ):
     """
     List orders for tenant (with filters)
+    Vendors can only see their store's orders
     """
-    await require_role(current_user, ["tenant_admin", "super_admin"])
+    await require_role(current_user, ["tenant_admin", "super_admin", "vendor"])
     tenant_id = await get_tenant_id(current_user)
     
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     
     query = {"tenant_id": tenant_id}
-    if store_id:
+    
+    # If user is vendor, filter by their store_id
+    if current_user.get("role") == "vendor":
+        vendor_store_id = current_user.get("store_id")
+        if not vendor_store_id:
+            raise HTTPException(status_code=400, detail="Vendor must be assigned to a store")
+        query["store_id"] = vendor_store_id
+    elif store_id:
+        # Tenant admins can filter by specific store
         query["store_id"] = store_id
+        
     if status_filter:
         query["status"] = status_filter
     
