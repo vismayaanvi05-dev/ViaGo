@@ -35,6 +35,7 @@ import VendorSettings from './pages/vendor-admin/Settings';
 import GroceryProducts from './pages/grocery-admin/Products';
 import GroceryCategories from './pages/grocery-admin/Categories';
 import GroceryInventory from './pages/grocery-admin/Inventory';
+import GroceryOrders from './pages/tenant-admin/GroceryOrders';
 
 // Laundry Pages (no separate layout - integrated in Tenant Admin)
 import LaundryServices from './pages/laundry-admin/Services';
@@ -128,15 +129,7 @@ function App() {
             <Route path="grocery/products" element={<GroceryProducts />} />
             <Route path="grocery/categories" element={<GroceryCategories />} />
             <Route path="grocery/inventory" element={<GroceryInventory />} />
-            <Route 
-              path="grocery/orders" 
-              element={
-                <div className="p-8">
-                  <h1 className="text-3xl font-bold">Grocery Orders</h1>
-                  <p className="text-gray-600 mt-2">Coming soon...</p>
-                </div>
-              } 
-            />
+            <Route path="grocery/orders" element={<GroceryOrders />} />
             
             {/* Laundry Module Routes */}
             <Route path="laundry/services" element={<LaundryServices />} />

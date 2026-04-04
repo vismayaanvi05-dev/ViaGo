@@ -86,6 +86,14 @@ export const tenantAdminAPI = {
   getSettings: () => apiClient.get('/tenant-admin/settings'),
   updateSettings: (data) => apiClient.put('/tenant-admin/settings', data),
   
+  // Orders (Food)
+  getOrders: (params) => apiClient.get('/tenant-admin/orders', { params }),
+  getOrderDetails: (orderId) => apiClient.get(`/tenant-admin/orders/${orderId}`),
+  updateOrderStatus: (orderId, data) => apiClient.put(`/tenant-admin/orders/${orderId}/status`, data),
+  assignDelivery: (orderId, data) => apiClient.post(`/tenant-admin/orders/${orderId}/assign-delivery`, data),
+  cancelOrder: (orderId, data) => apiClient.put(`/tenant-admin/orders/${orderId}/cancel`, data),
+  getOrderHistory: (orderId) => apiClient.get(`/tenant-admin/orders/${orderId}/history`),
+  
   // Stores
   getStores: (params) => apiClient.get('/tenant-admin/stores', { params }),
   getStore: (id) => apiClient.get(`/tenant-admin/stores/${id}`),
@@ -223,6 +231,12 @@ export const groceryAPI = {
   
   // Products
   getProducts: (params) => apiClient.get('/grocery-admin/products', { params }),
+  
+  // Orders
+  getOrders: (params) => apiClient.get('/grocery-admin/orders', { params }),
+  getOrderDetails: (orderId) => apiClient.get(`/grocery-admin/orders/${orderId}`),
+  updateOrderStatus: (orderId, data) => apiClient.put(`/grocery-admin/orders/${orderId}/status`, data),
+
   createProduct: (data) => apiClient.post('/grocery-admin/products', data),
   updateProduct: (id, data) => apiClient.put(`/grocery-admin/products/${id}`, data),
   deleteProduct: (id) => apiClient.delete(`/grocery-admin/products/${id}`),
@@ -250,6 +264,13 @@ export const laundryAPI = {
   // Pricing
   getPricing: (params) => apiClient.get('/laundry-admin/pricing', { params }),
   createPricing: (data) => apiClient.post('/laundry-admin/pricing', data),
+  
+  // Orders
+  getOrders: (params) => apiClient.get('/laundry-admin/orders', { params }),
+  getOrderDetails: (orderId) => apiClient.get(`/laundry-admin/orders/${orderId}`),
+  updateOrderStatus: (orderId, data) => apiClient.put(`/laundry-admin/orders/${orderId}/status`, data),
+  getOrderHistory: (orderId) => apiClient.get(`/laundry-admin/orders/${orderId}/history`),
+
   updatePricing: (id, data) => apiClient.put(`/laundry-admin/pricing/${id}`, data),
   
   // Orders

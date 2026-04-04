@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { tenantAdminAPI } from '../../api/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { groceryAPI } from '../../api/client';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -8,16 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import OrderStatusTimeline from '../../components/OrderStatusTimeline';
-import { Eye, RefreshCw, Search, X } from 'lucide-react';
+import { Eye, RefreshCw, Search } from 'lucide-react';
 
-const TenantOrders = () => {
+const GroceryOrders = () => {
   const { toast } = useToast();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [statusUpdateDialogOpen, setStatusUpdateDialogOpen] = useState(false);
-  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   
   const [filters, setFilters] = useState({
     status: '',
@@ -29,13 +28,11 @@ const TenantOrders = () => {
     notes: ''
   });
   
-  const [cancelReason, setCancelReason] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   useEffect(() => {
     fetchOrders();
     
-    // Auto-refresh every 30 seconds
     let interval;
     if (autoRefresh) {
       interval = setInterval(() => {
@@ -54,15 +51,13 @@ const TenantOrders = () => {
       const params = {};
       if (filters.status) params.status_filter = filters.status;
       
-      const res = await tenantAdminAPI.getOrders(params);
+      const res = await groceryAPI.getOrders(params);
       let ordersData = res.data;
       
-      // Client-side search filter
       if (filters.search) {
         ordersData = ordersData.filter(order => 
           order.order_number?.toLowerCase().includes(filters.search.toLowerCase()) ||
-          order.customer_name?.toLowerCase().includes(filters.search.toLowerCase()) ||
-          order.customer_phone?.includes(filters.search)
+          order.customer_name?.toLowerCase().includes(filters.search.toLowerCase())
         );
       }
       
@@ -77,19 +72,24 @@ const TenantOrders = () => {
   };
 
   const handleViewDetails = async (order) => {
-    setSelectedOrder(order);
-    setDetailDialogOpen(true);
+    try {
+      const res = await groceryAPI.getOrderDetails(order.id);
+      setSelectedOrder(res.data);
+      setDetailDialogOpen(true);
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to load order details', variant: 'destructive' });
+    }
   };
 
   const handleUpdateStatus = async () => {
     try {
-      await tenantAdminAPI.updateOrderStatus(selectedOrder.id, statusForm);
+      await groceryAPI.updateOrderStatus(selectedOrder.id, statusForm);
       toast({ title: 'Success', description: 'Order status updated' });
       setStatusUpdateDialogOpen(false);
       setStatusForm({ status: '', notes: '' });
       fetchOrders();
       if (detailDialogOpen) {
-        const updatedOrder = await tenantAdminAPI.getOrderDetails(selectedOrder.id);
+        const updatedOrder = await groceryAPI.getOrderDetails(selectedOrder.id);
         setSelectedOrder(updatedOrder.data);
       }
     } catch (error) {
@@ -97,27 +97,11 @@ const TenantOrders = () => {
     }
   };
 
-  const handleCancelOrder = async () => {
-    try {
-      await tenantAdminAPI.cancelOrder(selectedOrder.id, { reason: cancelReason });
-      toast({ title: 'Success', description: 'Order cancelled' });
-      setCancelDialogOpen(false);
-      setCancelReason('');
-      fetchOrders();
-      if (detailDialogOpen) {
-        const updatedOrder = await tenantAdminAPI.getOrderDetails(selectedOrder.id);
-        setSelectedOrder(updatedOrder.data);
-      }
-    } catch (error) {
-      toast({ title: 'Error', description: error.response?.data?.detail || 'Failed to cancel order', variant: 'destructive' });
-    }
-  };
-
   const getStatusColor = (status) => {
     const colors = {
-      placed: 'bg-blue-100 text-blue-800',
+      pending: 'bg-blue-100 text-blue-800',
       confirmed: 'bg-green-100 text-green-800',
-      preparing: 'bg-yellow-100 text-yellow-800',
+      packing: 'bg-yellow-100 text-yellow-800',
       ready: 'bg-purple-100 text-purple-800',
       out_for_delivery: 'bg-orange-100 text-orange-800',
       delivered: 'bg-gray-100 text-gray-800',
@@ -132,7 +116,7 @@ const TenantOrders = () => {
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Food Orders</h1>
+          <h1 className="text-3xl font-bold">Grocery Orders</h1>
           <p className="text-sm text-gray-600 mt-1">
             {autoRefresh && <span className="text-green-600">● Auto-refreshing every 30s</span>}
           </p>
@@ -161,7 +145,7 @@ const TenantOrders = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search by order number, customer name, or phone..."
+                  placeholder="Search by order number or customer name..."
                   value={filters.search}
                   onChange={(e) => setFilters({...filters, search: e.target.value})}
                   className="pl-10"
@@ -174,9 +158,9 @@ const TenantOrders = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">All Statuses</SelectItem>
-                <SelectItem value="placed">Placed</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="confirmed">Confirmed</SelectItem>
-                <SelectItem value="preparing">Preparing</SelectItem>
+                <SelectItem value="packing">Packing</SelectItem>
                 <SelectItem value="ready">Ready</SelectItem>
                 <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
                 <SelectItem value="delivered">Delivered</SelectItem>
@@ -196,7 +180,6 @@ const TenantOrders = () => {
                 <tr>
                   <th className="text-left p-4 font-medium">Order #</th>
                   <th className="text-left p-4 font-medium">Customer</th>
-                  <th className="text-left p-4 font-medium">Store</th>
                   <th className="text-left p-4 font-medium">Items</th>
                   <th className="text-left p-4 font-medium">Total</th>
                   <th className="text-left p-4 font-medium">Status</th>
@@ -211,12 +194,8 @@ const TenantOrders = () => {
                       <span className="font-mono text-sm">{order.order_number || order.id.slice(0, 8)}</span>
                     </td>
                     <td className="p-4">
-                      <div>
-                        <p className="font-medium">{order.customer_name || 'N/A'}</p>
-                        <p className="text-sm text-gray-600">{order.customer_phone || ''}</p>
-                      </div>
+                      <p className="font-medium">{order.customer_name || 'N/A'}</p>
                     </td>
-                    <td className="p-4">{order.store_name || 'N/A'}</td>
                     <td className="p-4">{order.items?.length || 0}</td>
                     <td className="p-4 font-semibold">₹{order.total_amount || 0}</td>
                     <td className="p-4">
@@ -225,7 +204,7 @@ const TenantOrders = () => {
                       </Badge>
                     </td>
                     <td className="p-4 text-sm text-gray-600">
-                      {order.placed_at ? new Date(order.placed_at).toLocaleString() : 'N/A'}
+                      {order.created_at ? new Date(order.created_at).toLocaleString() : 'N/A'}
                     </td>
                     <td className="p-4">
                       <Button size="sm" variant="outline" onClick={() => handleViewDetails(order)}>
@@ -250,7 +229,7 @@ const TenantOrders = () => {
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Order Details - #{selectedOrder?.order_number || selectedOrder?.id?.slice(0, 8)}</DialogTitle>
+            <DialogTitle>Grocery Order Details - #{selectedOrder?.order_number || selectedOrder?.id?.slice(0, 8)}</DialogTitle>
           </DialogHeader>
           
           {selectedOrder && (
@@ -259,12 +238,7 @@ const TenantOrders = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Customer</p>
-                  <p className="font-medium">{selectedOrder.customer_name}</p>
-                  <p className="text-sm text-gray-600">{selectedOrder.customer_phone}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Store</p>
-                  <p className="font-medium">{selectedOrder.store_name}</p>
+                  <p className="font-medium">{selectedOrder.customer_name || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Status</p>
@@ -276,6 +250,10 @@ const TenantOrders = () => {
                   <p className="text-sm text-gray-600">Total Amount</p>
                   <p className="font-semibold text-lg">₹{selectedOrder.total_amount}</p>
                 </div>
+                <div>
+                  <p className="text-sm text-gray-600">Delivery Slot</p>
+                  <p className="font-medium">{selectedOrder.delivery_slot || 'Instant'}</p>
+                </div>
               </div>
 
               {/* Order Items */}
@@ -286,7 +264,7 @@ const TenantOrders = () => {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="text-left p-3">Item</th>
-                        <th className="text-left p-3">Qty</th>
+                        <th className="text-left p-3">Qty/Weight</th>
                         <th className="text-left p-3">Price</th>
                         <th className="text-left p-3">Total</th>
                       </tr>
@@ -294,10 +272,10 @@ const TenantOrders = () => {
                     <tbody>
                       {selectedOrder.items?.map((item, idx) => (
                         <tr key={idx} className="border-t">
-                          <td className="p-3">{item.item_name || 'N/A'}</td>
-                          <td className="p-3">{item.quantity}</td>
-                          <td className="p-3">₹{item.unit_price}</td>
-                          <td className="p-3 font-medium">₹{item.total_price}</td>
+                          <td className="p-3">{item.product_name || 'N/A'}</td>
+                          <td className="p-3">{item.quantity} {item.unit}</td>
+                          <td className="p-3">₹{item.price}</td>
+                          <td className="p-3 font-medium">₹{item.total}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -311,7 +289,7 @@ const TenantOrders = () => {
                 <OrderStatusTimeline 
                   statusHistory={selectedOrder.status_history || []} 
                   currentStatus={selectedOrder.status}
-                  module="food"
+                  module="grocery"
                 />
               </div>
 
@@ -323,9 +301,6 @@ const TenantOrders = () => {
                     setStatusUpdateDialogOpen(true);
                   }}>
                     Update Status
-                  </Button>
-                  <Button variant="destructive" onClick={() => setCancelDialogOpen(true)}>
-                    Cancel Order
                   </Button>
                 </div>
               )}
@@ -349,7 +324,7 @@ const TenantOrders = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="preparing">Preparing</SelectItem>
+                  <SelectItem value="packing">Packing</SelectItem>
                   <SelectItem value="ready">Ready for Pickup</SelectItem>
                   <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
@@ -371,31 +346,8 @@ const TenantOrders = () => {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Cancel Order Dialog */}
-      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel Order</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">Please provide a reason for cancellation:</p>
-            <Input 
-              value={cancelReason} 
-              onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="Cancellation reason"
-            />
-            <div className="flex gap-2">
-              <Button variant="destructive" onClick={handleCancelOrder} className="flex-1">
-                Cancel Order
-              </Button>
-              <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>Close</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
 
-export default TenantOrders;
+export default GroceryOrders;
