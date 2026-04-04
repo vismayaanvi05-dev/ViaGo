@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HyperServe Mobile App - QR Code</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        h1 {
+            color: #8B5CF6;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #6B7280;
+            margin-bottom: 30px;
+        }
+        .qr-container {
+            background: #F9FAFB;
+            padding: 30px;
+            border-radius: 16px;
+            margin: 30px 0;
+            display: inline-block;
+        }
+        #qrcode {
+            margin: 0 auto;
+        }
+        .expo-url {
+            background: #1F2937;
+            color: #10B981;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 20px 0;
+            word-break: break-all;
+        }
+        .instructions {
+            text-align: left;
+            background: #F3F4F6;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+        .instructions h3 {
+            color: #1F2937;
+            margin-bottom: 15px;
+        }
+        .instructions ol {
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 10px 0;
+            color: #4B5563;
+        }
+        .btn {
+            background: #8B5CF6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .btn:hover {
+            background: #7C3AED;
+        }
+        .loading {
+            color: #6B7280;
+            font-style: italic;
+        }
+        .error {
+            color: #EF4444;
+            background: #FEE2E2;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .status {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin: 10px 0;
+        }
+        .status.running {
+            background: #D1FAE5;
+            color: #065F46;
+        }
+        .status.stopped {
+            background: #FEE2E2;
+            color: #991B1B;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 HyperServe Mobile App</h1>
+        <p class="subtitle">Scan QR Code to Test on Your Phone</p>
+
+        <div id="status-container"></div>
+        
+        <div class="qr-container" id="qr-section" style="display: none;">
+            <div id="qrcode"></div>
+        </div>
+
+        <div id="expo-url-container"></div>
+
+        <div class="instructions">
+            <h3>📱 How to Use:</h3>
+            <ol>
+                <li>Install <strong>"Expo Go"</strong> app on your phone (App Store or Play Store)</li>
+                <li>Open the Expo Go app</li>
+                <li><strong>Scan the QR code above</strong> with the app</li>
+                <li>Wait 30-60 seconds for the app to load</li>
+                <li>Start testing! 🎉</li>
+            </ol>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <button class="btn" onclick="checkStatus()">🔄 Refresh Status</button>
+            <button class="btn" onclick="startExpo()">▶️ Start Expo Server</button>
+        </div>
+
+        <div id="error-container"></div>
+    </div>
+
+    <script>
+        let expoUrl = '';
+        
+        async function checkStatus() {
+            const statusContainer = document.getElementById('status-container');
+            const qrSection = document.getElementById('qr-section');
+            const expoUrlContainer = document.getElementById('expo-url-container');
+            const errorContainer = document.getElementById('error-container');
+            
+            statusContainer.innerHTML = '<p class="loading">Checking Expo server status...</p>';
+            errorContainer.innerHTML = '';
+            
+            try {
+                // Check if Metro bundler is running
+                const response = await fetch('http://localhost:8081/status', { mode: 'no-cors' });
+                
+                // If we get here, server is likely running
+                statusContainer.innerHTML = '<span class="status running">✅ Expo Server Running</span>';
+                
+                // Generate QR code with the Expo URL
+                // Using the pod's hostname
+                const hostname = window.location.hostname;
+                expoUrl = `exp://${hostname}:8081`;
+                
+                // Show QR code
+                document.getElementById('qrcode').innerHTML = '';
+                QRCode.toCanvas(document.getElementById('qrcode'), expoUrl, {
+                    width: 256,
+                    margin: 2,
+                    color: {
+                        dark: '#8B5CF6',
+                        light: '#FFFFFF'
+                    }
+                }, function (error) {
+                    if (error) {
+                        errorContainer.innerHTML = `<div class="error">Error generating QR code: ${error}</div>`;
+                    }
+                });
+                
+                qrSection.style.display = 'block';
+                
+                expoUrlContainer.innerHTML = `
+                    <p style="color: #6B7280; margin-bottom: 10px;"><strong>Or enter this URL manually in Expo Go:</strong></p>
+                    <div class="expo-url">${expoUrl}</div>
+                `;
+                
+            } catch (error) {
+                statusContainer.innerHTML = '<span class="status stopped">❌ Expo Server Not Running</span>';
+                qrSection.style.display = 'none';
+                expoUrlContainer.innerHTML = '';
+                
+                errorContainer.innerHTML = `
+                    <div class="error">
+                        <strong>Server Not Running!</strong><br><br>
+                        Please run this command in terminal:<br>
+                        <code style="display: block; margin-top: 10px; background: #1F2937; color: #10B981; padding: 10px; border-radius: 5px;">
+                            cd /app/mobile-app && yarn start
+                        </code>
+                        <br>
+                        Then click "Refresh Status" above.
+                    </div>
+                `;
+            }
+        }
+        
+        async function startExpo() {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.innerHTML = '<div class="error">⚠️ Cannot start server from browser. Please run:<br><code style="display: block; margin-top: 10px; background: #1F2937; color: #10B981; padding: 10px;">cd /app/mobile-app && yarn start</code></div>';
+        }
+        
+        // Check status on page load
+        checkStatus();
+        
+        // Auto-refresh every 10 seconds
+        setInterval(checkStatus, 10000);
+    </script>
+</body>
+</html>
