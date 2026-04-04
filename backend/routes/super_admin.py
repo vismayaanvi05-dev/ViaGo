@@ -54,6 +54,69 @@ async def create_tenant(
     
     return tenant
 
+
+# Enhanced tenant creation endpoint
+@router.post("/tenants/enhanced")
+async def create_tenant_enhanced(
+    tenant_data: dict,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Create new tenant with full feature configuration (Super Admin only)
+    """
+    await require_role(current_user, ["super_admin"])
+    
+    # Create tenant
+    tenant = Tenant(
+        name=tenant_data["name"],
+        business_type=tenant_data.get("business_type", "multi_vendor"),
+        active_modules=tenant_data.get("active_modules", ["food"])
+    )
+    tenant_dict = tenant.model_dump()
+    tenant_dict["created_at"] = tenant_dict["created_at"].isoformat()
+    tenant_dict["updated_at"] = tenant_dict["updated_at"].isoformat()
+    tenant_dict["contact_email"] = tenant_data.get("contact_email", "")
+    tenant_dict["contact_phone"] = tenant_data.get("contact_phone", "")
+    
+    await db.tenants.insert_one(tenant_dict)
+    
+    # Create tenant feature configuration
+    feature_config = {
+        "id": str(uuid.uuid4()),
+        "tenant_id": tenant.id,
+        "payment_methods": tenant_data.get("payment_methods", ["cod", "online"]),
+        "can_manage_delivery_fees": tenant_data.get("can_manage_delivery_fees", True),
+        "can_manage_tax": tenant_data.get("can_manage_tax", True),
+        "can_manage_commission": tenant_data.get("can_manage_commission", True),
+        "delivery_boy_app_enabled": tenant_data.get("delivery_boy_app_enabled", True),
+        "vendor_admin_app_enabled": tenant_data.get("vendor_admin_app_enabled", True),
+        "customer_app_enabled": tenant_data.get("customer_app_enabled", True),
+        "tenant_admin_can_create_delivery_boys": tenant_data.get("tenant_admin_can_create_delivery_boys", True),
+        "tenant_admin_can_create_vendors": tenant_data.get("tenant_admin_can_create_vendors", True),
+        "delivery_fee_type": tenant_data.get("delivery_fee_type", "distance_based"),
+        "platform_commission_percentage": tenant_data.get("platform_commission_percentage", 10.0),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.tenant_feature_configs.insert_one(feature_config)
+    
+    # Create tenant settings
+    settings = TenantSettings(tenant_id=tenant.id)
+    settings_dict = settings.model_dump()
+    settings_dict["created_at"] = settings_dict["created_at"].isoformat()
+    settings_dict["updated_at"] = settings_dict["updated_at"].isoformat()
+    settings_dict["delivery_charge_type"] = tenant_data.get("delivery_fee_type", "distance_based")
+    await db.tenant_settings.insert_one(settings_dict)
+    
+    return {
+        "success": True,
+        "tenant": tenant_dict,
+        "feature_config": feature_config
+    }
+
+
+
 @router.get("/tenants", response_model=List[Tenant])
 async def list_tenants(
     current_user: dict = Depends(get_current_user),

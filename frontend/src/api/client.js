@@ -131,6 +131,9 @@ export const superAdminAPI = {
   getTenants: (params) => apiClient.get('/super-admin/tenants', { params }),
   getTenant: (id) => apiClient.get(`/super-admin/tenants/${id}`),
   createTenant: (data) => apiClient.post('/super-admin/tenants', data),
+
+  createTenantEnhanced: (data) => apiClient.post('/super-admin/tenants/enhanced', data),
+
   updateTenant: (id, data) => apiClient.put(`/super-admin/tenants/${id}`, data),
   deleteTenant: (id) => apiClient.delete(`/super-admin/tenants/${id}`),
   
