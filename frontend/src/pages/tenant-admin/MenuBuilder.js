@@ -302,23 +302,27 @@ const MenuBuilder = () => {
   }
 
   return (
-    <div className="flex h-full">
-      {/* Left Sidebar - Categories */}
-      <div className="w-64 bg-white border-r p-4 overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-900">Categories</h3>
-          <Dialog open={categoryDialogOpen} onOpenChange={(open) => {
-            setCategoryDialogOpen(open);
-            if (!open) resetCategoryForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button size="sm" onClick={() => {
-                resetCategoryForm();
-                setCategoryDialogOpen(true);
-              }}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </DialogTrigger>
+    <div className="p-8">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Menu Builder</h1>
+          <p className="text-gray-600 mt-1">Manage your food items</p>
+        </div>
+        
+        <div className="flex gap-3">
+          <Select value={selectedStore} onValueChange={setSelectedStore}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {stores.map((store) => (
+                <SelectItem key={store.id} value={store.id}>
+                  {store.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{editingCategory ? 'Edit Category' : 'Add Category'}</DialogTitle>
