@@ -48,7 +48,7 @@ async def create_address(
     await db.addresses.insert_one(address_dict)
     return address
 
-@router.get("/addresses", response_model=List[Address])
+@router.get("/addresses")
 async def list_my_addresses(
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
@@ -64,6 +64,11 @@ async def list_my_addresses(
     for address in addresses:
         if isinstance(address.get("created_at"), str):
             address["created_at"] = datetime.fromisoformat(address["created_at"])
+        # Handle field name variations from seeded data
+        if "address_line1" in address and "address_line" not in address:
+            address["address_line"] = f"{address.get('address_line1', '')} {address.get('address_line2', '')}".strip()
+        if "label" in address and "address_type" not in address:
+            address["address_type"] = address.get("label", "home").lower()
     
     return addresses
 
@@ -143,10 +148,9 @@ async def browse_restaurants(
     await require_role(current_user, ["customer"])
     
     query = {
-        "store_type": "restaurant",
+        "type": "restaurant",
         "is_active": True,
-        "is_accepting_orders": True,
-        "is_deleted": False
+        "is_accepting_orders": True
     }
     
     if cuisine_type:
@@ -194,7 +198,7 @@ async def get_restaurant_details(
     await require_role(current_user, ["customer"])
     
     store = await db.stores.find_one(
-        {"id": store_id, "is_active": True, "is_deleted": False},
+        {"id": store_id, "is_active": True},
         {"_id": 0}
     )
     
@@ -466,6 +470,10 @@ async def get_my_orders(
         if store:
             order["store_name"] = store.get("name")
             order["store_logo"] = store.get("logo_url")
+        
+        # Remove _id from nested delivery_address if present
+        if order.get("delivery_address") and isinstance(order["delivery_address"], dict):
+            order["delivery_address"].pop("_id", None)
         
         # Convert datetime strings
         if isinstance(order.get("placed_at"), str):

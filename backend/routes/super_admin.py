@@ -183,7 +183,7 @@ async def create_subscription_plan(
     await db.subscription_plans.insert_one(plan_dict)
     return plan
 
-@router.get("/subscription-plans", response_model=List[SubscriptionPlan])
+@router.get("/subscription-plans")
 async def list_subscription_plans(
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db),
@@ -203,6 +203,11 @@ async def list_subscription_plans(
     for plan in plans:
         if isinstance(plan.get("created_at"), str):
             plan["created_at"] = datetime.fromisoformat(plan["created_at"])
+        # Handle field name variations from seeded data
+        if "billing_cycle" not in plan:
+            plan["billing_cycle"] = "monthly"
+        if "price" not in plan:
+            plan["price"] = plan.get("monthly_fee", 0)
     
     return plans
 

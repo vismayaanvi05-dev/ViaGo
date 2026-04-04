@@ -263,6 +263,10 @@ async def list_orders(
         if store:
             order["store_name"] = store.get("name")
         
+        # Remove _id from nested delivery_address if present
+        if order.get("delivery_address") and isinstance(order["delivery_address"], dict):
+            order["delivery_address"].pop("_id", None)
+        
         # Convert datetime strings
         if isinstance(order.get("placed_at"), str):
             order["placed_at"] = datetime.fromisoformat(order["placed_at"])

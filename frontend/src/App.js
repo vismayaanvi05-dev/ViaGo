@@ -19,6 +19,12 @@ import TenantStores from './pages/tenant-admin/Stores';
 import TenantOrders from './pages/tenant-admin/Orders';
 import MenuBuilder from './pages/tenant-admin/MenuBuilder';
 
+// Super Admin
+import SuperAdminLayout from './pages/super-admin/Layout';
+import SuperAdminDashboard from './pages/super-admin/Dashboard';
+import SuperAdminTenants from './pages/super-admin/Tenants';
+import SuperAdminPlans from './pages/super-admin/SubscriptionPlans';
+
 // Landing page
 const Home = () => {
   return (
@@ -114,21 +120,39 @@ function App() {
             />
           </Route>
           
-          {/* Placeholder routes for other roles */}
+          {/* Super Admin Routes */}
           <Route
             path="/super-admin"
             element={
               <ProtectedRoute allowedRoles={['super_admin']}>
-                <div className="min-h-screen flex items-center justify-center">
-                  <div className="text-center">
-                    <h1 className="text-3xl font-bold text-gray-900">Super Admin Dashboard</h1>
-                    <p className="text-gray-600 mt-2">Coming soon...</p>
-                  </div>
-                </div>
+                <SuperAdminLayout />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<SuperAdminDashboard />} />
+            <Route path="tenants" element={<SuperAdminTenants />} />
+            <Route path="plans" element={<SuperAdminPlans />} />
+            <Route 
+              path="analytics" 
+              element={
+                <div className="p-8">
+                  <h1 className="text-3xl font-bold">Analytics</h1>
+                  <p className="text-gray-600 mt-2">Coming soon...</p>
+                </div>
+              } 
+            />
+            <Route 
+              path="payouts" 
+              element={
+                <div className="p-8">
+                  <h1 className="text-3xl font-bold">Payouts</h1>
+                  <p className="text-gray-600 mt-2">Coming soon...</p>
+                </div>
+              } 
+            />
+          </Route>
           
+          {/* Delivery Partner Routes */}
           <Route
             path="/delivery"
             element={

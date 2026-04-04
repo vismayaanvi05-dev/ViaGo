@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { tenantAdminAPI } from '../../api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, ShoppingBag, Store, TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { DollarSign, ShoppingBag, Store, TrendingUp, Menu as MenuSquare, Settings } from 'lucide-react';
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
