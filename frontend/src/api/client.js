@@ -185,4 +185,27 @@ export const deliveryAPI = {
   getEarnings: () => apiClient.get('/delivery/earnings'),
 };
 
+// ==================== VENDOR APIs ====================
+export const vendorAPI = {
+  // Store
+  getStore: () => apiClient.get('/vendor/store'),
+  updateStore: (data) => apiClient.put('/vendor/store', data),
+  
+  // Menu Items
+  getItems: (params) => apiClient.get('/vendor/items', { params }),
+  createItem: (data) => apiClient.post('/vendor/items', data),
+  updateItem: (id, data) => apiClient.put(`/vendor/items/${id}`, data),
+  deleteItem: (id) => apiClient.delete(`/vendor/items/${id}`),
+  
+  // Categories
+  getCategories: (params) => apiClient.get('/vendor/categories', { params }),
+  
+  // Orders
+  getOrders: (params) => apiClient.get('/vendor/orders', { params }),
+  updateOrderStatus: (id, data) => apiClient.put(`/vendor/orders/${id}/status`, data),
+  
+  // Password
+  changePassword: (data) => apiClient.post('/vendor/change-password', data),
+};
+
 export default apiClient;

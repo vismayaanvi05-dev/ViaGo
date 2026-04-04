@@ -23,6 +23,14 @@ import CreateVendorAdmin from './pages/tenant-admin/CreateVendorAdmin';
 import TenantReports from './pages/tenant-admin/Reports';
 import TenantCategories from './pages/tenant-admin/Categories';
 
+// Vendor Admin
+import VendorAdminLayout from './pages/vendor-admin/Layout';
+import VendorDashboard from './pages/vendor-admin/Dashboard';
+import VendorMenu from './pages/vendor-admin/Menu';
+import VendorOrders from './pages/vendor-admin/Orders';
+import VendorAnalytics from './pages/vendor-admin/Analytics';
+import VendorSettings from './pages/vendor-admin/Settings';
+
 // Super Admin
 import SuperAdminLayout from './pages/super-admin/Layout';
 import SuperAdminDashboard from './pages/super-admin/Dashboard';
@@ -136,6 +144,15 @@ function App() {
                 </div>
               } 
             />
+          </Route>
+
+          {/* ==================== VENDOR ADMIN ROUTES ==================== */}
+          <Route path="/vendor-admin" element={<ProtectedRoute allowedRoles={['vendor']}><VendorAdminLayout /></ProtectedRoute>}>
+            <Route index element={<VendorDashboard />} />
+            <Route path="menu" element={<VendorMenu />} />
+            <Route path="orders" element={<VendorOrders />} />
+            <Route path="analytics" element={<VendorAnalytics />} />
+            <Route path="settings" element={<VendorSettings />} />
           </Route>
           
           {/* Delivery Partner Routes */}
