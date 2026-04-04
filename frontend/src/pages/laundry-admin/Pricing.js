@@ -45,8 +45,8 @@ const LaundryPricing = () => {
       setItems(itemsRes.data);
       setStores(storesRes.data);
       
-      // Auto-select first store if available
-      if (storesRes.data.length > 0 && !pricingForm.store_id) {
+      // Auto-select first store silently (laundry is single-branch)
+      if (storesRes.data.length > 0) {
         setPricingForm(prev => ({ ...prev, store_id: storesRes.data[0].id }));
       }
     } catch (error) {
@@ -111,16 +111,6 @@ const LaundryPricing = () => {
               <DialogTitle>{editingPricing ? 'Edit Pricing' : 'Add Pricing'}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Store *</Label>
-                <Select value={pricingForm.store_id} onValueChange={(value) => setPricingForm({...pricingForm, store_id: value})}>
-                  <SelectTrigger><SelectValue placeholder="Select store" /></SelectTrigger>
-                  <SelectContent>
-                    {stores.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="space-y-2">
                 <Label>Service *</Label>
                 <Select value={pricingForm.service_id} onValueChange={(value) => setPricingForm({...pricingForm, service_id: value})}>
