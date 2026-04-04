@@ -372,12 +372,15 @@ async def create_item(
     from utils.helpers import calculate_admin_markup
     markup_amount = calculate_admin_markup(item_data.base_price, markup_percentage)
     
-    item = Item(
-        tenant_id=tenant_id,
-        **item_data.model_dump(),
-        admin_markup_percentage=markup_percentage,
-        admin_markup_amount=markup_amount
-    )
+    # Create item dict with calculated values
+    item_dict = item_data.model_dump()
+    item_dict.update({
+        "tenant_id": tenant_id,
+        "admin_markup_percentage": markup_percentage,
+        "admin_markup_amount": markup_amount
+    })
+    
+    item = Item(**item_dict)
     
     item_dict = item.model_dump()
     item_dict["created_at"] = item_dict["created_at"].isoformat()
