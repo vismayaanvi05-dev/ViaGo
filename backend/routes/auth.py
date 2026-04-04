@@ -139,8 +139,11 @@ async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_
         tenant=tenant_doc
     )
 
+# Import auth dependency at the top
+from middleware.auth import get_current_user as get_current_user_middleware
+
 @router.get("/me")
-async def get_current_user_info(current_user: dict = Depends(get_current_user), db: AsyncIOMotorDatabase = Depends(get_db)):
+async def get_current_user_info(current_user: dict = Depends(get_current_user_middleware), db: AsyncIOMotorDatabase = Depends(get_db)):
     """
     Get current logged in user info
     """
@@ -159,6 +162,3 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user), 
         user_doc["updated_at"] = datetime.fromisoformat(user_doc["updated_at"])
     
     return user_doc
-
-# Import auth dependency
-from middleware.auth import get_current_user
