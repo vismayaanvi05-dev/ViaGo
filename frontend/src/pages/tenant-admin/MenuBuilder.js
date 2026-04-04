@@ -91,6 +91,8 @@ const MenuBuilder = () => {
   };
 
   const fetchItems = async () => {
+    if (!selectedStore) return;
+    
     try {
       const params = { 
         store_id: selectedStore,
@@ -101,13 +103,18 @@ const MenuBuilder = () => {
       }
       
       const response = await tenantAdminAPI.getItems(params);
-      setItems(response.data);
+      setItems(response.data || []);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load items",
-        variant: "destructive",
-      });
+      console.error('Failed to fetch items:', error);
+      setItems([]);
+      // Only show error toast if it's not a "no items" scenario
+      if (error.response?.status !== 404) {
+        toast({
+          title: "Error",
+          description: error.response?.data?.detail || "Failed to load items",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -123,9 +130,9 @@ const MenuBuilder = () => {
         module: 'food'
       });
       toast({ title: "Success", description: "Category created successfully" });
+      fetchCategories();
       setCategoryDialogOpen(false);
       resetCategoryForm();
-      fetchCategories();
     } catch (error) {
       toast({
         title: "Error",
@@ -140,9 +147,9 @@ const MenuBuilder = () => {
     try {
       await tenantAdminAPI.updateCategory(editingCategory.id, categoryForm);
       toast({ title: "Success", description: "Category updated successfully" });
+      fetchCategories();
       setCategoryDialogOpen(false);
       resetCategoryForm();
-      fetchCategories();
     } catch (error) {
       toast({
         title: "Error",
@@ -298,9 +305,15 @@ const MenuBuilder = () => {
       <div className="w-64 bg-white border-r p-4 overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900">Categories</h3>
-          <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+          <Dialog open={categoryDialogOpen} onOpenChange={(open) => {
+            setCategoryDialogOpen(open);
+            if (!open) resetCategoryForm();
+          }}>
             <DialogTrigger asChild>
-              <Button size="sm" onClick={resetCategoryForm}>
+              <Button size="sm" onClick={() => {
+                resetCategoryForm();
+                setCategoryDialogOpen(true);
+              }}>
                 <Plus className="h-4 w-4" />
               </Button>
             </DialogTrigger>
@@ -412,9 +425,15 @@ const MenuBuilder = () => {
               </SelectContent>
             </Select>
             
-            <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
+            <Dialog open={itemDialogOpen} onOpenChange={(open) => {
+              setItemDialogOpen(open);
+              if (!open) resetItemForm();
+            }}>
               <DialogTrigger asChild>
-                <Button onClick={resetItemForm}>
+                <Button onClick={() => {
+                  resetItemForm();
+                  setItemDialogOpen(true);
+                }}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Item
                 </Button>
