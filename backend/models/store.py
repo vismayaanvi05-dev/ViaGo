@@ -109,5 +109,6 @@ class CategoryUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     image_url: Optional[str] = None
+    parent_id: Optional[str] = None
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None

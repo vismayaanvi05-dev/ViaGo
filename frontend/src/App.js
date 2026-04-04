@@ -21,6 +21,7 @@ import TenantOrders from './pages/tenant-admin/Orders';
 import MenuBuilder from './pages/tenant-admin/MenuBuilder';
 import CreateVendorAdmin from './pages/tenant-admin/CreateVendorAdmin';
 import TenantReports from './pages/tenant-admin/Reports';
+import TenantCategories from './pages/tenant-admin/Categories';
 
 // Super Admin
 import SuperAdminLayout from './pages/super-admin/Layout';
@@ -94,6 +95,7 @@ function App() {
             <Route path="settings" element={<TenantSettings />} />
             <Route path="stores" element={<TenantStores />} />
             <Route path="menu" element={<MenuBuilder />} />
+            <Route path="categories" element={<TenantCategories />} />
             <Route path="orders" element={<TenantOrders />} />
             <Route path="vendors" element={<CreateVendorAdmin />} />
             <Route path="reports" element={<TenantReports />} />

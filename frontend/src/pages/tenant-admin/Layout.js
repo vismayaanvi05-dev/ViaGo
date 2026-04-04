@@ -10,7 +10,8 @@ import {
   LogOut,
   MenuSquare,
   Home,
-  Users
+  Users,
+  FolderTree
 } from 'lucide-react';
 
 const TenantAdminLayout = () => {
@@ -29,6 +30,7 @@ const TenantAdminLayout = () => {
     { path: '/tenant-admin/stores', icon: Store, label: 'Stores' },
     { path: '/tenant-admin/vendors', icon: Users, label: 'Vendor Admins' },
     { path: '/tenant-admin/menu', icon: MenuSquare, label: 'Menu' },
+    { path: '/tenant-admin/categories', icon: FolderTree, label: 'Categories' },
     { path: '/tenant-admin/orders', icon: ShoppingBag, label: 'Orders' },
     { path: '/tenant-admin/reports', icon: BarChart3, label: 'Reports' },
   ];

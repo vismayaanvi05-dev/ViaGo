@@ -242,6 +242,7 @@ const MenuBuilder = () => {
       name: '',
       description: '',
       category_id: '',
+      sub_category_id: '',
       base_price: 0,
       admin_markup_percentage: null,
       is_veg: true,
@@ -257,6 +258,7 @@ const MenuBuilder = () => {
       name: item.name,
       description: item.description || '',
       category_id: item.category_id,
+      sub_category_id: item.sub_category_id || '',
       base_price: item.base_price,
       admin_markup_percentage: item.admin_markup_percentage,
       is_veg: item.is_veg,
@@ -457,13 +459,33 @@ const MenuBuilder = () => {
                       <Label htmlFor="item-category">Category *</Label>
                       <Select
                         value={itemForm.category_id}
-                        onValueChange={(value) => setItemForm({ ...itemForm, category_id: value })}
+                        onValueChange={(value) => setItemForm({ ...itemForm, category_id: value, sub_category_id: '' })}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
                         <SelectContent>
-                          {categories.map((cat) => (
+                          {categories.filter(c => !c.parent_id).map((cat) => (
+                            <SelectItem key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="item-sub-category">Sub-category (Optional)</Label>
+                      <Select
+                        value={itemForm.sub_category_id || ''}
+                        onValueChange={(value) => setItemForm({ ...itemForm, sub_category_id: value })}
+                        disabled={!itemForm.category_id}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={itemForm.category_id ? "Select sub-category" : "Select category first"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">None</SelectItem>
+                          {categories.filter(c => c.parent_id === itemForm.category_id).map((cat) => (
                             <SelectItem key={cat.id} value={cat.id}>
                               {cat.name}
                             </SelectItem>
