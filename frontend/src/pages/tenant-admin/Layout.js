@@ -56,6 +56,7 @@ const TenantAdminLayout = () => {
   // Global menu items (always visible)
   const globalItems = [
     { path: '/tenant-admin', icon: Home, label: 'Dashboard' },
+    { path: '/tenant-admin/orders', icon: ShoppingBag, label: 'All Orders' },
     { path: '/tenant-admin/settings', icon: Settings, label: 'Settings' },
   ];
 
@@ -74,7 +75,6 @@ const TenantAdminLayout = () => {
     { path: '/tenant-admin/grocery/products', icon: Package, label: 'Products' },
     { path: '/tenant-admin/grocery/categories', icon: FolderTree, label: 'Categories' },
     { path: '/tenant-admin/grocery/inventory', icon: Warehouse, label: 'Inventory' },
-    { path: '/tenant-admin/grocery/orders', icon: ShoppingBag, label: 'Orders' },
   ];
 
   // Laundry module menu items
@@ -82,7 +82,6 @@ const TenantAdminLayout = () => {
     { path: '/tenant-admin/laundry/services', icon: Sparkles, label: 'Services' },
     { path: '/tenant-admin/laundry/items', icon: Package, label: 'Items' },
     { path: '/tenant-admin/laundry/pricing', icon: DollarSign, label: 'Pricing' },
-    { path: '/tenant-admin/laundry/orders', icon: ShoppingBag, label: 'Orders' },
     { path: '/tenant-admin/laundry/time-slots', icon: Clock, label: 'Time Slots' },
   ];
 

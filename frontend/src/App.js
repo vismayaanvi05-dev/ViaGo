@@ -18,6 +18,7 @@ import TenantDashboard from './pages/tenant-admin/Dashboard';
 import TenantSettings from './pages/tenant-admin/Settings';
 import TenantStores from './pages/tenant-admin/Stores';
 import TenantOrders from './pages/tenant-admin/Orders';
+import UnifiedOrders from './pages/tenant-admin/UnifiedOrders';
 import MenuBuilder from './pages/tenant-admin/MenuBuilder';
 import CreateVendorAdmin from './pages/tenant-admin/CreateVendorAdmin';
 import TenantReports from './pages/tenant-admin/Reports';
@@ -121,7 +122,7 @@ function App() {
             <Route path="stores" element={<TenantStores />} />
             <Route path="menu" element={<MenuBuilder />} />
             <Route path="categories" element={<TenantCategories />} />
-            <Route path="orders" element={<TenantOrders />} />
+            <Route path="orders" element={<UnifiedOrders />} />
             <Route path="vendors" element={<CreateVendorAdmin />} />
             <Route path="reports" element={<TenantReports />} />
             
@@ -129,13 +130,11 @@ function App() {
             <Route path="grocery/products" element={<GroceryProducts />} />
             <Route path="grocery/categories" element={<GroceryCategories />} />
             <Route path="grocery/inventory" element={<GroceryInventory />} />
-            <Route path="grocery/orders" element={<GroceryOrders />} />
             
             {/* Laundry Module Routes */}
             <Route path="laundry/services" element={<LaundryServices />} />
             <Route path="laundry/items" element={<LaundryItems />} />
             <Route path="laundry/pricing" element={<LaundryPricing />} />
-            <Route path="laundry/orders" element={<LaundryOrders />} />
             <Route path="laundry/time-slots" element={<LaundryTimeSlots />} />
           </Route>
           
