@@ -20,6 +20,691 @@ def get_db():
     from server import db
     return db
 
+# ==================== APP CONFIGURATION ====================
+
+@router.get("/config")
+async def get_app_config(
+    lat: float = None,
+    lng: float = None,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Get app configuration and available modules based on location
+    """
+    # Default config
+    config = {
+        "app_name": "HyperServe",
+        "version": "1.0.0",
+        "available_modules": [],
+        "theme": {
+            "primary_color": "#8B5CF6",
+            "secondary_color": "#EC4899"
+        }
+    }
+    
+    # Check which modules have active stores nearby
+    if lat and lng:
+        # Check Food stores
+        food_stores = await db.stores.find({
+            "store_type": "restaurant",
+            "is_active": True,
+            "is_accepting_orders": True
+        }).to_list(1)
+        if food_stores:
+            config["available_modules"].append("food")
+        
+        # Check Grocery stores
+        grocery_stores = await db.stores.find({
+            "store_type": "grocery",
+            "is_active": True,
+            "is_accepting_orders": True
+        }).to_list(1)
+        if grocery_stores:
+            config["available_modules"].append("grocery")
+        
+        # Check Laundry stores
+        laundry_stores = await db.stores.find({
+            "store_type": "laundry",
+            "is_active": True,
+            "is_accepting_orders": True
+        }).to_list(1)
+        if laundry_stores:
+            config["available_modules"].append("laundry")
+    else:
+        # If no location, show all modules
+        config["available_modules"] = ["food", "grocery", "laundry"]
+    
+    return config
+
+# ==================== STORE DISCOVERY (MULTI-MODULE) ====================
+
+@router.get("/stores")
+async def discover_stores(
+    lat: float,
+    lng: float,
+    module: str = None,  # 'food', 'grocery', 'laundry'
+    search: str = None,
+    skip: int = 0,
+    limit: int = 20,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Discover stores based on location and module
+    Module-first architecture: filter stores by service type
+    """
+    # Build query
+    query = {
+        "is_active": True,
+        "is_accepting_orders": True
+    }
+    
+    # Filter by module
+    if module:
+        store_type_map = {
+            "food": "restaurant",
+            "grocery": "grocery",
+            "laundry": "laundry"
+        }
+        query["store_type"] = store_type_map.get(module, "restaurant")
+    
+    # Search by name
+    if search:
+        query["name"] = {"$regex": search, "$options": "i"}
+    
+    stores = await db.stores.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    
+    # Calculate distance and filter by delivery radius
+    filtered_stores = []
+    for store in stores:
+        if store.get("lat") and store.get("lng"):
+            distance = calculate_distance(lat, lng, store["lat"], store["lng"])
+            store["distance_km"] = round(distance, 2)
+            
+            # Check if within delivery radius
+            delivery_radius = store.get("delivery_radius_km", 5)
+            if distance <= delivery_radius:
+                store["is_deliverable"] = True
+                filtered_stores.append(store)
+            else:
+                store["is_deliverable"] = False
+        else:
+            # No coordinates, assume deliverable
+            store["distance_km"] = None
+            store["is_deliverable"] = True
+            filtered_stores.append(store)
+    
+    # Sort by distance
+    filtered_stores.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 999)
+    
+    # Enrich with tenant info
+    for store in filtered_stores:
+        tenant = await db.tenants.find_one({"id": store["tenant_id"]}, {"_id": 0, "name": 1})
+        if tenant:
+            store["tenant_name"] = tenant.get("name")
+        
+        # Get average rating
+        reviews = await db.reviews.find({"store_id": store["id"]}).to_list(1000)
+        if reviews:
+            avg_rating = sum(r.get("overall_rating", 0) for r in reviews) / len(reviews)
+            store["rating"] = round(avg_rating, 1)
+            store["total_reviews"] = len(reviews)
+        else:
+            store["rating"] = 0
+            store["total_reviews"] = 0
+    
+    return {
+        "stores": filtered_stores,
+        "total": len(filtered_stores),
+        "module": module
+    }
+
+# ==================== SEARCH ====================
+
+@router.get("/search")
+async def search_stores_and_items(
+    q: str,
+    lat: float,
+    lng: float,
+    module: str = None,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Search across stores and items
+    """
+    results = {
+        "stores": [],
+        "items": []
+    }
+    
+    # Search stores
+    store_query = {
+        "is_active": True,
+        "is_accepting_orders": True,
+        "name": {"$regex": q, "$options": "i"}
+    }
+    
+    if module:
+        store_type_map = {"food": "restaurant", "grocery": "grocery", "laundry": "laundry"}
+        store_query["store_type"] = store_type_map.get(module)
+    
+    stores = await db.stores.find(store_query, {"_id": 0}).limit(10).to_list(10)
+    
+    # Calculate distances
+    for store in stores:
+        if store.get("lat") and store.get("lng"):
+            distance = calculate_distance(lat, lng, store["lat"], store["lng"])
+            store["distance_km"] = round(distance, 2)
+            store["is_deliverable"] = distance <= store.get("delivery_radius_km", 5)
+        results["stores"].append(store)
+    
+    # Search items
+    items = await db.items.find({
+        "name": {"$regex": q, "$options": "i"},
+        "is_available": True,
+        "is_deleted": False
+    }, {"_id": 0}).limit(20).to_list(20)
+    
+    # Enrich items with store info
+    for item in items:
+        store = await db.stores.find_one({"id": item.get("store_id")}, {"_id": 0, "name": 1, "store_type": 1})
+        if store:
+            item["store_name"] = store.get("name")
+            item["store_type"] = store.get("store_type")
+        results["items"].append(item)
+    
+    return results
+
+# ==================== PROFILE MANAGEMENT ====================
+
+@router.get("/profile")
+async def get_profile(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Get customer profile
+    """
+    await require_role(current_user, ["customer"])
+    user_id = current_user["user_id"]
+    
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get order stats
+    total_orders = await db.orders.count_documents({"customer_id": user_id})
+    user["total_orders"] = total_orders
+    
+    return user
+
+@router.put("/profile")
+async def update_profile(
+    profile_data: dict,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Update customer profile
+    """
+    await require_role(current_user, ["customer"])
+    user_id = current_user["user_id"]
+    
+    # Allowed fields to update
+    allowed_fields = ["name", "email", "phone", "profile_photo"]
+    update_data = {k: v for k, v in profile_data.items() if k in allowed_fields}
+    
+    if update_data:
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": update_data}
+        )
+    
+    return {"success": True, "message": "Profile updated successfully"}
+
+# ==================== CART MANAGEMENT ====================
+
+@router.post("/cart/add")
+async def add_to_cart(
+    cart_item: dict,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Add item to cart
+    Rule: One cart = One store
+    """
+    await require_role(current_user, ["customer"])
+    user_id = current_user["user_id"]
+    
+    # Get current cart
+    cart = await db.carts.find_one({"user_id": user_id})
+    
+    # Check if cart exists and is from different store
+    if cart and cart.get("store_id") != cart_item.get("store_id"):
+        return {
+            "success": False,
+            "error": "cart_conflict",
+            "message": "Your cart contains items from another store. Clear cart to continue.",
+            "current_store_id": cart.get("store_id")
+        }
+    
+    # Validate store
+    store = await db.stores.find_one({"id": cart_item.get("store_id")})
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+    
+    # Validate item
+    item = await db.items.find_one({"id": cart_item.get("item_id")})
+    if not item or not item.get("is_available"):
+        raise HTTPException(status_code=400, detail="Item not available")
+    
+    # Create or update cart
+    if not cart:
+        cart = {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "store_id": cart_item.get("store_id"),
+            "tenant_id": store.get("tenant_id"),
+            "module": store.get("store_type"),
+            "items": [],
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+    
+    # Check if item already in cart
+    existing_item = next((i for i in cart["items"] if i["item_id"] == cart_item["item_id"] 
+                         and i.get("variant_id") == cart_item.get("variant_id")), None)
+    
+    if existing_item:
+        # Update quantity
+        existing_item["quantity"] += cart_item.get("quantity", 1)
+    else:
+        # Add new item
+        cart["items"].append({
+            "id": str(uuid.uuid4()),
+            "item_id": cart_item["item_id"],
+            "item_name": item["name"],
+            "quantity": cart_item.get("quantity", 1),
+            "unit_price": item["base_price"],
+            "variant_id": cart_item.get("variant_id"),
+            "add_ons": cart_item.get("add_ons", []),
+            "added_at": datetime.utcnow().isoformat()
+        })
+    
+    cart["updated_at"] = datetime.utcnow().isoformat()
+    
+    # Upsert cart
+    await db.carts.update_one(
+        {"user_id": user_id},
+        {"$set": cart},
+        upsert=True
+    )
+    
+    return {
+        "success": True,
+        "message": "Item added to cart",
+        "cart": cart
+    }
+
+@router.get("/cart")
+async def get_cart(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Get current cart
+    """
+    await require_role(current_user, ["customer"])
+    user_id = current_user["user_id"]
+    
+    cart = await db.carts.find_one({"user_id": user_id}, {"_id": 0})
+    
+    if not cart:
+        return {
+            "cart": None,
+            "subtotal": 0,
+            "item_count": 0
+        }
+    
+    # Calculate subtotal
+    subtotal = 0
+    for item in cart.get("items", []):
+        subtotal += item["unit_price"] * item["quantity"]
+    
+    # Get store info
+    store = await db.stores.find_one({"id": cart.get("store_id")}, {"_id": 0})
+    
+    return {
+        "cart": cart,
+        "store": store,
+        "subtotal": subtotal,
+        "item_count": len(cart.get("items", []))
+    }
+
+@router.put("/cart/update")
+async def update_cart_item(
+    update_data: dict,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Update cart item quantity
+    """
+    await require_role(current_user, ["customer"])
+    user_id = current_user["user_id"]
+    
+    cart = await db.carts.find_one({"user_id": user_id})
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart not found")
+    
+    # Find and update item
+    item_found = False
+    for item in cart["items"]:
+        if item["item_id"] == update_data.get("item_id"):
+            item["quantity"] = update_data.get("quantity", 1)
+            item_found = True
+            break
+    
+    if not item_found:
+        raise HTTPException(status_code=404, detail="Item not found in cart")
+    
+    cart["updated_at"] = datetime.utcnow().isoformat()
+    
+    await db.carts.update_one(
+        {"user_id": user_id},
+        {"$set": cart}
+    )
+    
+    return {"success": True, "message": "Cart updated", "cart": cart}
+
+@router.delete("/cart/remove")
+async def remove_from_cart(
+    item_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Remove item from cart
+    """
+    await require_role(current_user, ["customer"])
+    user_id = current_user["user_id"]
+    
+    cart = await db.carts.find_one({"user_id": user_id})
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart not found")
+    
+    # Remove item
+    cart["items"] = [item for item in cart["items"] if item["item_id"] != item_id]
+    cart["updated_at"] = datetime.utcnow().isoformat()
+    
+    # If cart is empty, delete it
+    if not cart["items"]:
+        await db.carts.delete_one({"user_id": user_id})
+        return {"success": True, "message": "Cart is now empty"}
+    
+    await db.carts.update_one(
+        {"user_id": user_id},
+        {"$set": cart}
+    )
+    
+    return {"success": True, "message": "Item removed from cart", "cart": cart}
+
+@router.delete("/cart/clear")
+async def clear_cart(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Clear entire cart
+    """
+    await require_role(current_user, ["customer"])
+    user_id = current_user["user_id"]
+    
+    result = await db.carts.delete_one({"user_id": user_id})
+    
+    if result.deleted_count == 0:
+        return {"success": True, "message": "Cart was already empty"}
+    
+    return {"success": True, "message": "Cart cleared successfully"}
+
+# ==================== MODULE-SPECIFIC ENDPOINTS ====================
+
+@router.get("/stores/{store_id}/grocery")
+async def get_grocery_inventory(
+    store_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Get grocery store inventory with categories
+    """
+    await require_role(current_user, ["customer"])
+    
+    store = await db.stores.find_one(
+        {"id": store_id, "store_type": "grocery", "is_active": True},
+        {"_id": 0}
+    )
+    
+    if not store:
+        raise HTTPException(status_code=404, detail="Grocery store not found")
+    
+    # Get categories
+    categories = await db.categories.find(
+        {"store_id": store_id, "module": "grocery", "is_active": True},
+        {"_id": 0}
+    ).to_list(100)
+    
+    # Get items for each category
+    for category in categories:
+        items = await db.grocery_items.find(
+            {"category_id": category["id"], "is_available": True},
+            {"_id": 0}
+        ).to_list(500)
+        
+        # Enrich with inventory
+        for item in items:
+            inventory = await db.grocery_inventory.find_one(
+                {"item_id": item["id"]},
+                {"_id": 0}
+            )
+            if inventory:
+                item["current_stock"] = inventory.get("current_stock", 0)
+                item["in_stock"] = inventory.get("current_stock", 0) > 0
+            else:
+                item["current_stock"] = 0
+                item["in_stock"] = False
+        
+        category["items"] = items
+    
+    store["categories"] = categories
+    
+    return store
+
+@router.get("/stores/{store_id}/laundry")
+async def get_laundry_services(
+    store_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Get laundry store services and pricing
+    """
+    await require_role(current_user, ["customer"])
+    
+    store = await db.stores.find_one(
+        {"id": store_id, "store_type": "laundry", "is_active": True},
+        {"_id": 0}
+    )
+    
+    if not store:
+        raise HTTPException(status_code=404, detail="Laundry store not found")
+    
+    # Get service categories
+    categories = await db.laundry_categories.find(
+        {"store_id": store_id, "is_active": True},
+        {"_id": 0}
+    ).to_list(100)
+    
+    # Get items for each category
+    for category in categories:
+        items = await db.laundry_items.find(
+            {"category_id": category["id"], "is_active": True},
+            {"_id": 0}
+        ).to_list(100)
+        
+        # Get pricing for each item
+        for item in items:
+            pricing = await db.laundry_pricing.find(
+                {"item_id": item["id"]},
+                {"_id": 0}
+            ).to_list(10)
+            item["pricing"] = pricing
+        
+        category["items"] = items
+    
+    # Get available time slots
+    slots = await db.laundry_slots.find(
+        {"store_id": store_id, "is_active": True},
+        {"_id": 0}
+    ).to_list(100)
+    
+    store["categories"] = categories
+    store["available_slots"] = slots
+    
+    return store
+
+# ==================== COUPONS ====================
+
+@router.get("/coupons")
+async def get_available_coupons(
+    store_id: str = None,
+    module: str = None,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Get available coupons for customer
+    """
+    await require_role(current_user, ["customer"])
+    user_id = current_user["user_id"]
+    
+    # Build query
+    query = {
+        "is_active": True,
+        "valid_from": {"$lte": datetime.utcnow()},
+        "valid_until": {"$gte": datetime.utcnow()}
+    }
+    
+    if store_id:
+        query["$or"] = [
+            {"store_id": store_id},
+            {"store_id": None}  # Platform-wide coupons
+        ]
+    
+    if module:
+        query["$or"] = [
+            {"applicable_modules": module},
+            {"applicable_modules": []}  # All modules
+        ]
+    
+    coupons = await db.coupons.find(query, {"_id": 0}).to_list(100)
+    
+    # Check usage for each coupon
+    for coupon in coupons:
+        # Check if user has already used this coupon
+        usage_count = await db.coupon_usage.count_documents({
+            "coupon_id": coupon["id"],
+            "user_id": user_id
+        })
+        
+        coupon["user_used"] = usage_count >= coupon.get("usage_limit_per_user", 1)
+        coupon["remaining_uses"] = max(0, coupon.get("usage_limit_per_user", 1) - usage_count)
+    
+    return coupons
+
+@router.post("/cart/apply-coupon")
+async def apply_coupon(
+    coupon_data: dict,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Apply coupon to cart
+    """
+    await require_role(current_user, ["customer"])
+    user_id = current_user["user_id"]
+    
+    coupon_code = coupon_data.get("coupon_code")
+    
+    # Get cart
+    cart = await db.carts.find_one({"user_id": user_id})
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart is empty")
+    
+    # Validate coupon
+    coupon = await db.coupons.find_one({
+        "code": coupon_code,
+        "is_active": True
+    })
+    
+    if not coupon:
+        raise HTTPException(status_code=404, detail="Invalid coupon code")
+    
+    # Check validity dates
+    now = datetime.utcnow()
+    valid_from = datetime.fromisoformat(coupon["valid_from"]) if isinstance(coupon["valid_from"], str) else coupon["valid_from"]
+    valid_until = datetime.fromisoformat(coupon["valid_until"]) if isinstance(coupon["valid_until"], str) else coupon["valid_until"]
+    
+    if now < valid_from or now > valid_until:
+        raise HTTPException(status_code=400, detail="Coupon expired or not yet valid")
+    
+    # Check usage limit
+    usage_count = await db.coupon_usage.count_documents({
+        "coupon_id": coupon["id"],
+        "user_id": user_id
+    })
+    
+    if usage_count >= coupon.get("usage_limit_per_user", 1):
+        raise HTTPException(status_code=400, detail="Coupon usage limit reached")
+    
+    # Calculate cart subtotal
+    subtotal = sum(item["unit_price"] * item["quantity"] for item in cart["items"])
+    
+    # Check minimum order value
+    if subtotal < coupon.get("min_order_value", 0):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Minimum order value of ₹{coupon['min_order_value']} required"
+        )
+    
+    # Calculate discount
+    if coupon["discount_type"] == "flat":
+        discount = coupon["discount_value"]
+    else:  # percentage
+        discount = (subtotal * coupon["discount_value"]) / 100
+        if coupon.get("max_discount"):
+            discount = min(discount, coupon["max_discount"])
+    
+    # Update cart with coupon
+    cart["applied_coupon"] = {
+        "code": coupon_code,
+        "coupon_id": coupon["id"],
+        "discount_amount": discount
+    }
+    cart["updated_at"] = datetime.utcnow().isoformat()
+    
+    await db.carts.update_one(
+        {"user_id": user_id},
+        {"$set": cart}
+    )
+    
+    return {
+        "success": True,
+        "message": "Coupon applied successfully",
+        "discount": discount,
+        "cart": cart
+    }
+
 # ==================== ADDRESS MANAGEMENT ====================
 
 @router.post("/addresses", response_model=Address)
