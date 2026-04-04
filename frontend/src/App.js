@@ -18,6 +18,7 @@ import TenantSettings from './pages/tenant-admin/Settings';
 import TenantStores from './pages/tenant-admin/Stores';
 import TenantOrders from './pages/tenant-admin/Orders';
 import MenuBuilder from './pages/tenant-admin/MenuBuilder';
+import CreateVendorAdmin from './pages/tenant-admin/CreateVendorAdmin';
 
 // Super Admin
 import SuperAdminLayout from './pages/super-admin/Layout';
