@@ -558,6 +558,58 @@ async def create_tenant_admin(
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
+
+
+@router.put("/tenant-admins/{admin_id}")
+async def update_tenant_admin(
+    admin_id: str,
+    update_data: dict,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Update tenant admin credentials (Super Admin only)"""
+    await require_role(current_user, ["super_admin"])
+    
+    admin = await db.users.find_one({"id": admin_id, "role": "tenant_admin"}, {"_id": 0})
+    if not admin:
+        raise HTTPException(status_code=404, detail="Tenant admin not found")
+    
+    update_fields = {}
+    if update_data.get("name"):
+        update_fields["name"] = update_data["name"]
+    if update_data.get("email"):
+        # Check if email already exists
+        existing = await db.users.find_one({"email": update_data["email"], "id": {"$ne": admin_id}}, {"_id": 0})
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already exists")
+        update_fields["email"] = update_data["email"]
+    if update_data.get("password"):
+        update_fields["password"] = get_password_hash(update_data["password"])
+    
+    if update_fields:
+        update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.users.update_one({"id": admin_id}, {"$set": update_fields})
+    
+    return {"success": True, "message": "Tenant admin updated"}
+
+@router.delete("/tenant-admins/{admin_id}")
+async def delete_tenant_admin(
+    admin_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Delete tenant admin (Super Admin only)"""
+    await require_role(current_user, ["super_admin"])
+    
+    admin = await db.users.find_one({"id": admin_id, "role": "tenant_admin"}, {"_id": 0})
+    if not admin:
+        raise HTTPException(status_code=404, detail="Tenant admin not found")
+    
+    await db.users.delete_one({"id": admin_id})
+    
+    return {"success": True, "message": "Tenant admin deleted"}
+
+
     """
     Create Tenant Admin with username/password (Super Admin only)
     """

@@ -224,5 +224,177 @@ async def login_with_password(request: UsernamePasswordLogin, db: AsyncIOMotorDa
         access_token=access_token,
         user=User(**user_doc),
         tenant=tenant_doc
+
+
+# ==================== EMAIL OTP LOGIN ====================
+
+@router.post("/send-email-otp")
+async def send_email_otp(
+    request: dict,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Send OTP to email for tenant admin login or password reset
+    """
+    email = request.get("email")
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    # Find user by email
+    user_doc = await db.users.find_one({"email": email}, {"_id": 0})
+    
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Generate 6-digit OTP
+    otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+    
+    # Store OTP in database with expiry (5 minutes)
+    otp_doc = {
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "otp": otp,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        "used": False
+    }
+    
+    await db.email_otps.insert_one(otp_doc)
+    
+    # In production, send email via SendGrid/SES
+    # For now, return OTP in response for testing
+    print(f"📧 Email OTP for {email}: {otp}")
+    
+    return {
+        "success": True,
+        "message": "OTP sent to your email",
+        "email": email,
+        "otp": otp  # Remove in production
+    }
+
+@router.post("/verify-email-otp", response_model=LoginResponse)
+async def verify_email_otp(
+    request: dict,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Verify email OTP and login
+    """
+    email = request.get("email")
+    otp = request.get("otp")
+    
+    if not email or not otp:
+        raise HTTPException(status_code=400, detail="Email and OTP are required")
+    
+    # Find OTP
+    otp_doc = await db.email_otps.find_one({
+        "email": email,
+        "otp": otp,
+        "used": False
+    }, {"_id": 0})
+    
+    if not otp_doc:
+        raise HTTPException(status_code=401, detail="Invalid or expired OTP")
+    
+    # Check expiry
+    expires_at = datetime.fromisoformat(otp_doc["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=401, detail="OTP expired")
+    
+    # Mark OTP as used
+    await db.email_otps.update_one(
+        {"id": otp_doc["id"]},
+        {"$set": {"used": True}}
+    )
+    
+    # Get user
+    user_doc = await db.users.find_one({"email": email}, {"_id": 0})
+    
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get tenant info if user has tenant_id
+    tenant_doc = None
+    if user_doc.get("tenant_id"):
+        tenant_doc = await db.tenants.find_one({"id": user_doc["tenant_id"]}, {"_id": 0})
+    
+    # Create JWT token
+    token_data = {
+        "user_id": user_doc["id"],
+        "email": user_doc["email"],
+        "role": user_doc["role"],
+        "tenant_id": user_doc.get("tenant_id")
+    }
+    
+    access_token = create_access_token(token_data)
+    
+    # Convert datetime fields
+    if isinstance(user_doc.get("created_at"), str):
+        user_doc["created_at"] = datetime.fromisoformat(user_doc["created_at"])
+    if isinstance(user_doc.get("updated_at"), str):
+        user_doc["updated_at"] = datetime.fromisoformat(user_doc["updated_at"])
+    
+    return LoginResponse(
+        access_token=access_token,
+        user=User(**user_doc),
+        tenant=tenant_doc
+    )
+
+@router.post("/reset-password")
+async def reset_password(
+    request: dict,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Reset password using email OTP
+    """
+    email = request.get("email")
+    otp = request.get("otp")
+    new_password = request.get("new_password")
+    
+    if not email or not otp or not new_password:
+        raise HTTPException(status_code=400, detail="Email, OTP and new password are required")
+    
+    # Verify OTP
+    otp_doc = await db.email_otps.find_one({
+        "email": email,
+        "otp": otp,
+        "used": False
+    }, {"_id": 0})
+    
+    if not otp_doc:
+        raise HTTPException(status_code=401, detail="Invalid or expired OTP")
+    
+    # Check expiry
+    expires_at = datetime.fromisoformat(otp_doc["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=401, detail="OTP expired")
+    
+    # Mark OTP as used
+    await db.email_otps.update_one(
+        {"id": otp_doc["id"]},
+        {"$set": {"used": True}}
+    )
+    
+    # Update password
+    hashed_password = get_password_hash(new_password)
+    result = await db.users.update_one(
+        {"email": email},
+        {"$set": {
+            "password": hashed_password,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "success": True,
+        "message": "Password reset successfully"
+    }
+
+
     )
 

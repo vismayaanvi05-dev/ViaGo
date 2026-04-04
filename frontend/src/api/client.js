@@ -41,6 +41,11 @@ export const authAPI = {
 
   loginWithPassword: (username, password) => apiClient.post('/auth/login', { username, password }),
 
+  sendEmailOTP: (email) => apiClient.post('/auth/send-email-otp', { email }),
+  verifyEmailOTP: (email, otp) => apiClient.post('/auth/verify-email-otp', { email, otp }),
+  resetPassword: (email, otp, new_password) => apiClient.post('/auth/reset-password', { email, otp, new_password }),
+
+
   sendOTP: (phone, role = 'customer') =>
     apiClient.post('/auth/send-otp', { phone, role }),
   
@@ -150,6 +155,10 @@ export const superAdminAPI = {
 
   
   // Tenant Admins
+
+  updateTenantAdmin: (id, data) => apiClient.put(`/super-admin/tenant-admins/${id}`, data),
+  deleteTenantAdmin: (id) => apiClient.delete(`/super-admin/tenant-admins/${id}`),
+
   createTenantAdmin: (data) => apiClient.post('/super-admin/tenant-admins', data),
   getTenantAdmins: (params) => apiClient.get('/super-admin/tenant-admins', { params }),
 
