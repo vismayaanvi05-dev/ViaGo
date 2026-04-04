@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import apiClient from '@/api/client';
+import apiClient, { tenantAdminAPI } from '@/api/client';
 
 const CreateVendorAdmin = () => {
   const { toast } = useToast();
@@ -24,7 +24,8 @@ const CreateVendorAdmin = () => {
 
   const fetchStores = async () => {
     try {
-      const response = await apiClient.getStores();
+      const response = await tenantAdminAPI.getStores();
+      console.log('Stores response:', response.data);
       setStores(response.data);
     } catch (error) {
       console.error('Error fetching stores:', error);
@@ -41,7 +42,7 @@ const CreateVendorAdmin = () => {
     setLoading(true);
 
     try {
-      const response = await apiClient.createVendorAdmin(formData);
+      const response = await tenantAdminAPI.createVendorAdmin(formData);
       
       toast({
         title: "Success",

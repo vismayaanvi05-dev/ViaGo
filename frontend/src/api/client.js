@@ -147,6 +147,12 @@ export const superAdminAPI = {
   assignSubscription: (data) => apiClient.post('/super-admin/tenant-subscriptions', data),
   
   // Analytics
+
+  
+  // Tenant Admins
+  createTenantAdmin: (data) => apiClient.post('/super-admin/tenant-admins', data),
+  getTenantAdmins: (params) => apiClient.get('/super-admin/tenant-admins', { params }),
+
   getDashboard: () => apiClient.get('/super-admin/analytics/dashboard'),
   getTenantsRevenue: (params) => apiClient.get('/super-admin/analytics/tenants-revenue', { params }),
   

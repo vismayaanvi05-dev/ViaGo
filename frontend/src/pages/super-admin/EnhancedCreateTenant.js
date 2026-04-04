@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import apiClient from '@/api/client';
+import apiClient, { superAdminAPI } from '@/api/client';
 import { Building2, Settings, CreditCard, Users, Truck } from 'lucide-react';
 
 const EnhancedCreateTenant = () => {
@@ -72,7 +72,7 @@ const EnhancedCreateTenant = () => {
     setLoading(true);
 
     try {
-      const response = await apiClient.createTenantEnhanced(formData);
+      const response = await superAdminAPI.createTenantEnhanced(formData);
       
       toast({
         title: "Success",
