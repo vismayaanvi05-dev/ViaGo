@@ -17,6 +17,7 @@ import TenantDashboard from './pages/tenant-admin/Dashboard';
 import TenantSettings from './pages/tenant-admin/Settings';
 import TenantStores from './pages/tenant-admin/Stores';
 import TenantOrders from './pages/tenant-admin/Orders';
+import MenuBuilder from './pages/tenant-admin/MenuBuilder';
 
 // Landing page
 const Home = () => {
@@ -100,16 +101,8 @@ function App() {
             <Route index element={<TenantDashboard />} />
             <Route path="settings" element={<TenantSettings />} />
             <Route path="stores" element={<TenantStores />} />
+            <Route path="menu" element={<MenuBuilder />} />
             <Route path="orders" element={<TenantOrders />} />
-            <Route 
-              path="menu" 
-              element={
-                <div className="p-8">
-                  <h1 className="text-3xl font-bold">Menu Builder</h1>
-                  <p className="text-gray-600 mt-2">Coming soon...</p>
-                </div>
-              } 
-            />
             <Route 
               path="reports" 
               element={
