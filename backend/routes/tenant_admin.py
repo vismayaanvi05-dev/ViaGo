@@ -758,3 +758,182 @@ async def delete_vendor_admin(
     await db.users.delete_one({"id": vendor_id})
     
     return {"success": True, "message": "Vendor admin deleted successfully"}
+
+
+
+# ==================== DELIVERY PARTNERS MANAGEMENT ====================
+
+class DeliveryPartnerCreate(BaseModel):
+    name: str
+    email: str
+    phone: Optional[str] = None
+    vehicle_type: str = "bike"  # bike, car, truck
+    vehicle_number: Optional[str] = None
+
+@router.post("/delivery-partners")
+async def create_delivery_partner(
+    partner_data: DeliveryPartnerCreate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Create a new delivery partner account"""
+    await require_role(current_user, ["tenant_admin"])
+    tenant_id = await get_tenant_id(current_user)
+    
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant ID required")
+    
+    # Check if email already exists
+    existing = await db.users.find_one({"email": partner_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Create delivery partner user
+    from models.user import User
+    from uuid import uuid4
+    
+    new_partner = User(
+        id=str(uuid4()),
+        tenant_id=tenant_id,
+        name=partner_data.name,
+        email=partner_data.email,
+        phone=partner_data.phone,
+        role="delivery_partner",
+        status="active"
+    )
+    
+    partner_dict = new_partner.model_dump()
+    partner_dict["vehicle_type"] = partner_data.vehicle_type
+    partner_dict["vehicle_number"] = partner_data.vehicle_number
+    partner_dict["created_at"] = partner_dict["created_at"].isoformat()
+    partner_dict["updated_at"] = partner_dict["updated_at"].isoformat()
+    partner_dict["total_deliveries"] = 0
+    partner_dict["current_order_id"] = None
+    partner_dict["current_location"] = None
+    
+    await db.users.insert_one(partner_dict)
+    
+    # TODO: Send email with login credentials (OTP-based)
+    
+    return {
+        "success": True,
+        "message": "Delivery partner created successfully",
+        "partner_id": new_partner.id
+    }
+
+@router.get("/delivery-partners")
+async def get_delivery_partners(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Get all delivery partners for tenant"""
+    await require_role(current_user, ["tenant_admin"])
+    tenant_id = await get_tenant_id(current_user)
+    
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant ID required")
+    
+    partners = await db.users.find(
+        {"tenant_id": tenant_id, "role": "delivery_partner", "is_deleted": False},
+        {"_id": 0, "password": 0}
+    ).to_list(1000)
+    
+    # Get delivery stats for each partner
+    for partner in partners:
+        deliveries_count = await db.orders.count_documents({
+            "delivery_partner_id": partner["id"],
+            "status": "delivered"
+        })
+        partner["total_deliveries"] = deliveries_count
+    
+    return partners
+
+@router.get("/delivery-partners/{partner_id}")
+async def get_delivery_partner(
+    partner_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Get delivery partner details"""
+    await require_role(current_user, ["tenant_admin"])
+    tenant_id = await get_tenant_id(current_user)
+    
+    partner = await db.users.find_one(
+        {"id": partner_id, "tenant_id": tenant_id, "role": "delivery_partner"},
+        {"_id": 0, "password": 0}
+    )
+    
+    if not partner:
+        raise HTTPException(status_code=404, detail="Delivery partner not found")
+    
+    # Get stats
+    total_deliveries = await db.orders.count_documents({
+        "delivery_partner_id": partner_id,
+        "status": "delivered"
+    })
+    
+    earnings_pipeline = [
+        {"$match": {"delivery_partner_id": partner_id, "status": "delivered"}},
+        {"$group": {"_id": None, "total": {"$sum": "$delivery_fee"}}}
+    ]
+    earnings_result = await db.orders.aggregate(earnings_pipeline).to_list(1)
+    total_earnings = earnings_result[0]["total"] if earnings_result else 0
+    
+    partner["stats"] = {
+        "total_deliveries": total_deliveries,
+        "total_earnings": total_earnings
+    }
+    
+    return partner
+
+@router.put("/delivery-partners/{partner_id}")
+async def update_delivery_partner(
+    partner_id: str,
+    partner_data: dict,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Update delivery partner details"""
+    await require_role(current_user, ["tenant_admin"])
+    tenant_id = await get_tenant_id(current_user)
+    
+    partner = await db.users.find_one(
+        {"id": partner_id, "tenant_id": tenant_id, "role": "delivery_partner"}
+    )
+    
+    if not partner:
+        raise HTTPException(status_code=404, detail="Delivery partner not found")
+    
+    # Allowed fields
+    allowed_fields = ["name", "email", "phone", "vehicle_type", "vehicle_number", "status"]
+    update_data = {k: v for k, v in partner_data.items() if k in allowed_fields}
+    
+    if update_data:
+        update_data["updated_at"] = datetime.utcnow().isoformat()
+        await db.users.update_one({"id": partner_id}, {"$set": update_data})
+    
+    return {"success": True, "message": "Delivery partner updated"}
+
+@router.delete("/delivery-partners/{partner_id}")
+async def delete_delivery_partner(
+    partner_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """Delete (soft delete) delivery partner"""
+    await require_role(current_user, ["tenant_admin"])
+    tenant_id = await get_tenant_id(current_user)
+    
+    partner = await db.users.find_one(
+        {"id": partner_id, "tenant_id": tenant_id, "role": "delivery_partner"}
+    )
+    
+    if not partner:
+        raise HTTPException(status_code=404, detail="Delivery partner not found")
+    
+    await db.users.update_one(
+        {"id": partner_id},
+        {"$set": {"is_deleted": True, "updated_at": datetime.utcnow().isoformat()}}
+    )
+    
+    return {"success": True, "message": "Delivery partner deleted"}

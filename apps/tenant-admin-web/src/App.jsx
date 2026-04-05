@@ -9,6 +9,7 @@ import Settings from './pages/Settings';
 import Stores from './pages/Stores';
 import MenuBuilder from './pages/MenuBuilder';
 import Orders from './pages/Orders';
+import DeliveryPartners from './pages/DeliveryPartners';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
             <Route path="stores" element={<Stores />} />
             <Route path="menu" element={<MenuBuilder />} />
             <Route path="orders" element={<Orders />} />
+            <Route path="delivery-partners" element={<DeliveryPartners />} />
             <Route 
               path="reports" 
               element={

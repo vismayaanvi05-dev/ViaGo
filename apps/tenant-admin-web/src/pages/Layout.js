@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { 
   Store, 
@@ -9,7 +9,8 @@ import {
   BarChart3, 
   LogOut,
   MenuSquare,
-  Home
+  Home,
+  Bike
 } from 'lucide-react';
 
 const TenantAdminLayout = () => {
@@ -23,16 +24,17 @@ const TenantAdminLayout = () => {
   };
 
   const menuItems = [
-    { path: '/tenant-admin', icon: Home, label: 'Dashboard' },
-    { path: '/tenant-admin/settings', icon: Settings, label: 'Settings' },
-    { path: '/tenant-admin/stores', icon: Store, label: 'Stores' },
-    { path: '/tenant-admin/menu', icon: MenuSquare, label: 'Menu' },
-    { path: '/tenant-admin/orders', icon: ShoppingBag, label: 'Orders' },
-    { path: '/tenant-admin/reports', icon: BarChart3, label: 'Reports' },
+    { path: '/', icon: Home, label: 'Dashboard' },
+    { path: '/settings', icon: Settings, label: 'Settings' },
+    { path: '/stores', icon: Store, label: 'Stores' },
+    { path: '/menu', icon: MenuSquare, label: 'Menu' },
+    { path: '/orders', icon: ShoppingBag, label: 'Orders' },
+    { path: '/delivery-partners', icon: Bike, label: 'Delivery Partners' },
+    { path: '/reports', icon: BarChart3, label: 'Reports' },
   ];
 
   const isActive = (path) => {
-    if (path === '/tenant-admin') {
+    if (path === '/') {
       return location.pathname === path;
     }
     return location.pathname.startsWith(path);
