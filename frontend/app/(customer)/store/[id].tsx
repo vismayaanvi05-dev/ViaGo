@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
+  RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,15 +19,13 @@ import { APP_CONFIG, MODULES } from '@/src/config';
 export default function StoreDetailsScreen() {
   const { id, module } = useLocalSearchParams();
   const router = useRouter();
-  const { addToCart, clearCart, store: cartStore, itemCount } = useCart();
+  const { addToCart, clearCart, store: cartStore, itemCount, loadCart } = useCart();
   const [store, setStore] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [addingItem, setAddingItem] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadStoreDetails();
-  }, [id]);
-
-  const loadStoreDetails = async () => {
+  const loadStoreDetails = useCallback(async () => {
     try {
       setLoading(true);
       const response = await customerAPI.getRestaurant(id as string);
@@ -37,133 +36,215 @@ export default function StoreDetailsScreen() {
     } finally {
       setLoading(false);
     }
+  }, [id]);
+
+  useEffect(() => {
+    loadStoreDetails();
+    loadCart();
+  }, [id, loadStoreDetails]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadStoreDetails();
+    await loadCart();
+    setRefreshing(false);
   };
 
-  const handleAddToCart = async (itemId: string, itemName: string) => {
+  const handleAddToCart = async (item: any) => {
     if (cartStore && cartStore.id !== id) {
       Alert.alert(
         'Different Store',
-        `Your cart contains items from ${cartStore.name}. Clear cart to add items from ${store.name}?`,
+        `Your cart has items from ${cartStore.name}. Do you want to clear it and add from ${store.name}?`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Clear Cart',
+            text: 'Clear & Add',
             style: 'destructive',
             onPress: async () => {
               await clearCart();
-              await addItemToCart(itemId, itemName);
+              await addItemToCart(item);
             },
           },
         ]
       );
     } else {
-      await addItemToCart(itemId, itemName);
+      await addItemToCart(item);
     }
   };
 
-  const addItemToCart = async (itemId: string, itemName: string) => {
-    const result = await addToCart(id as string, itemId, 1);
-    
-    if (result.success) {
-      Alert.alert('Added!', `${itemName} added to cart`, [
-        { text: 'Continue Shopping' },
-        { text: 'View Cart', onPress: () => router.push('/(customer)/cart') },
-      ]);
-    } else if (result.conflict) {
-      Alert.alert('Error', result.message);
-    } else {
-      Alert.alert('Error', result.message || 'Failed to add to cart');
+  const addItemToCart = async (item: any) => {
+    setAddingItem(item.id);
+    try {
+      const result = await addToCart(id as string, item.id, 1);
+      
+      if (result.success) {
+        Alert.alert(
+          '✅ Added to Cart',
+          `${item.name} added to your cart`,
+          [
+            { text: 'Continue', style: 'cancel' },
+            { text: 'View Cart', onPress: () => router.push('/(customer)/cart') },
+          ]
+        );
+      } else {
+        Alert.alert('Error', result.message || 'Failed to add item');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Something went wrong');
+    } finally {
+      setAddingItem(null);
     }
   };
 
-  if (loading) {
+  const moduleConfig = MODULES[(module as string)?.toUpperCase() as keyof typeof MODULES] || MODULES.FOOD;
+
+  if (loading && !store) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={APP_CONFIG.PRIMARY_COLOR} />
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={APP_CONFIG.PRIMARY_COLOR} />
+          <Text style={styles.loadingText}>Loading menu...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (!store) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>Store not found</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={60} color="#EF4444" />
+          <Text style={styles.errorText}>Store not found</Text>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Text style={styles.backBtnText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
-  const moduleColor = MODULES[(module as string)?.toUpperCase() as keyof typeof MODULES]?.color || APP_CONFIG.PRIMARY_COLOR;
-
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#1F2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{store.name}</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity style={styles.headerBtn} onPress={() => router.push('/(customer)/cart')}>
+          <Ionicons name="cart" size={24} color="#1F2937" />
+          {itemCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{itemCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
-      <ScrollView>
-        <View style={styles.storeHeader}>
-          <View style={[styles.storeLogo, { backgroundColor: moduleColor }]}>
-            <Text style={styles.storeLogoText}>{store.name.charAt(0)}</Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Store Info Card */}
+        <View style={styles.storeCard}>
+          <View style={[styles.storeIcon, { backgroundColor: moduleConfig.color + '20' }]}>
+            <Text style={styles.storeIconText}>{moduleConfig.icon}</Text>
           </View>
           <Text style={styles.storeName}>{store.name}</Text>
-          <Text style={styles.storeDescription}>{store.description}</Text>
-          <View style={styles.storeMetrics}>
-            <View style={styles.metricItem}>
-              <Ionicons name="star" size={16} color="#F59E0B" />
-              <Text style={styles.metricText}>{store.rating || 'New'}</Text>
+          <Text style={styles.storeDesc}>{store.description}</Text>
+          
+          <View style={styles.storeStats}>
+            <View style={styles.statItem}>
+              <Ionicons name="star" size={18} color="#F59E0B" />
+              <Text style={styles.statValue}>{store.rating || '4.5'}</Text>
+              <Text style={styles.statLabel}>Rating</Text>
             </View>
-            <View style={styles.metricItem}>
-              <Ionicons name="time" size={16} color="#6B7280" />
-              <Text style={styles.metricText}>{store.average_prep_time_minutes} mins</Text>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Ionicons name="time" size={18} color="#6B7280" />
+              <Text style={styles.statValue}>{store.average_prep_time_minutes}</Text>
+              <Text style={styles.statLabel}>mins</Text>
             </View>
-            <View style={styles.metricItem}>
-              <Ionicons name="wallet" size={16} color="#6B7280" />
-              <Text style={styles.metricText}>Min ₹{store.minimum_order_value}</Text>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Ionicons name="cash" size={18} color="#6B7280" />
+              <Text style={styles.statValue}>₹{store.minimum_order_value}</Text>
+              <Text style={styles.statLabel}>Min order</Text>
             </View>
           </View>
         </View>
 
-        {store.categories?.map((category: any) => (
-          <View key={category.id} style={styles.categorySection}>
-            <Text style={styles.categoryTitle}>{category.name}</Text>
-            {category.items?.map((item: any) => (
-              <View key={item.id} style={styles.itemCard}>
-                <View style={styles.itemInfo}>
-                  <View style={styles.itemNameRow}>
+        {/* Menu */}
+        <View style={styles.menuContainer}>
+          <Text style={styles.menuTitle}>📜 Menu</Text>
+          
+          {store.categories?.length === 0 && (
+            <View style={styles.emptyMenu}>
+              <Ionicons name="restaurant-outline" size={48} color="#D1D5DB" />
+              <Text style={styles.emptyMenuText}>No items available</Text>
+            </View>
+          )}
+
+          {store.categories?.map((category: any) => (
+            <View key={category.id} style={styles.categorySection}>
+              <Text style={styles.categoryName}>{category.name}</Text>
+              
+              {category.items?.map((item: any) => (
+                <View key={item.id} style={styles.itemCard}>
+                  <View style={styles.itemMain}>
                     {item.is_veg !== null && (
-                      <View style={[styles.vegIndicator, { borderColor: item.is_veg ? '#10B981' : '#EF4444' }]}>
-                        <View style={[styles.vegDot, { backgroundColor: item.is_veg ? '#10B981' : '#EF4444' }]} />
+                      <View style={[styles.vegBadge, { borderColor: item.is_veg ? '#22C55E' : '#EF4444' }]}>
+                        <View style={[styles.vegDot, { backgroundColor: item.is_veg ? '#22C55E' : '#EF4444' }]} />
                       </View>
                     )}
-                    <Text style={styles.itemName}>{item.name}</Text>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemName}>{item.name}</Text>
+                      {item.description && (
+                        <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
+                      )}
+                      <Text style={styles.itemPrice}>₹{item.base_price}</Text>
+                    </View>
                   </View>
-                  <Text style={styles.itemDescription} numberOfLines={2}>{item.description}</Text>
-                  <Text style={styles.itemPrice}>₹{item.base_price}</Text>
+                  
+                  <TouchableOpacity
+                    style={[styles.addBtn, { backgroundColor: moduleConfig.color }]}
+                    onPress={() => handleAddToCart(item)}
+                    disabled={addingItem === item.id}
+                  >
+                    {addingItem === item.id ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="add" size={18} color="#fff" />
+                        <Text style={styles.addBtnText}>ADD</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  style={[styles.addButton, { backgroundColor: moduleColor }]}
-                  onPress={() => handleAddToCart(item.id, item.name)}
-                >
-                  <Ionicons name="add" size={20} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        ))}
-        <View style={{ height: 100 }} />
+              ))}
+            </View>
+          ))}
+        </View>
+
+        <View style={{ height: 120 }} />
       </ScrollView>
 
+      {/* Floating Cart Button */}
       {itemCount > 0 && (
         <TouchableOpacity
-          style={[styles.viewCartButton, { backgroundColor: moduleColor }]}
+          style={[styles.floatingCart, { backgroundColor: moduleConfig.color }]}
           onPress={() => router.push('/(customer)/cart')}
         >
-          <Text style={styles.viewCartText}>{itemCount} item(s) in cart</Text>
-          <Ionicons name="arrow-forward" size={20} color="#fff" />
+          <View style={styles.floatingCartLeft}>
+            <Ionicons name="cart" size={22} color="#fff" />
+            <Text style={styles.floatingCartCount}>{itemCount} item(s)</Text>
+          </View>
+          <View style={styles.floatingCartRight}>
+            <Text style={styles.floatingCartText}>View Cart</Text>
+            <Ionicons name="arrow-forward" size={18} color="#fff" />
+          </View>
         </TouchableOpacity>
       )}
     </SafeAreaView>
@@ -171,162 +252,128 @@ export default function StoreDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#EF4444',
-  },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadingText: { marginTop: 12, color: '#6B7280', fontSize: 14 },
+  errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  errorText: { fontSize: 18, color: '#1F2937', marginTop: 12, marginBottom: 20 },
+  backBtn: { backgroundColor: APP_CONFIG.PRIMARY_COLOR, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
+  backBtnText: { color: '#fff', fontWeight: '600' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#F3F4F6',
   },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    flex: 1,
-    textAlign: 'center',
-  },
-  storeHeader: {
-    backgroundColor: '#fff',
-    padding: 20,
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  storeLogo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  headerBtn: { padding: 8, position: 'relative' },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '600', color: '#1F2937', textAlign: 'center', marginHorizontal: 8 },
+  cartBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: APP_CONFIG.PRIMARY_COLOR,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
   },
-  storeLogoText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  storeName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  storeDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  storeMetrics: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  metricItem: {
-    flexDirection: 'row',
+  cartBadgeText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  storeCard: {
+    backgroundColor: '#fff',
+    margin: 16,
+    borderRadius: 20,
+    padding: 24,
     alignItems: 'center',
-    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  metricText: {
-    fontSize: 12,
+  storeIcon: { width: 80, height: 80, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  storeIconText: { fontSize: 36 },
+  storeName: { fontSize: 24, fontWeight: '700', color: '#1F2937', marginBottom: 8, textAlign: 'center' },
+  storeDesc: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 20, lineHeight: 20 },
+  storeStats: { flexDirection: 'row', alignItems: 'center' },
+  statItem: { alignItems: 'center', paddingHorizontal: 20 },
+  statValue: { fontSize: 16, fontWeight: '700', color: '#1F2937', marginTop: 4 },
+  statLabel: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+  statDivider: { width: 1, height: 40, backgroundColor: '#E5E7EB' },
+  menuContainer: { paddingHorizontal: 16 },
+  menuTitle: { fontSize: 20, fontWeight: '700', color: '#1F2937', marginBottom: 16 },
+  emptyMenu: { alignItems: 'center', paddingVertical: 40 },
+  emptyMenuText: { marginTop: 12, color: '#9CA3AF', fontSize: 14 },
+  categorySection: { marginBottom: 24 },
+  categoryName: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#6B7280',
-  },
-  categorySection: {
-    marginTop: 16,
-  },
-  categoryTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    paddingHorizontal: 16,
     marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   itemCard: {
     flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginBottom: 8,
+    borderRadius: 16,
     padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  itemInfo: {
-    flex: 1,
+  itemMain: { flex: 1, flexDirection: 'row', alignItems: 'flex-start' },
+  vegBadge: {
+    width: 18,
+    height: 18,
+    borderWidth: 1.5,
+    borderRadius: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    marginTop: 2,
   },
-  itemNameRow: {
+  vegDot: { width: 8, height: 8, borderRadius: 4 },
+  itemInfo: { flex: 1 },
+  itemName: { fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 4 },
+  itemDesc: { fontSize: 13, color: '#9CA3AF', marginBottom: 8, lineHeight: 18 },
+  itemPrice: { fontSize: 16, fontWeight: '700', color: APP_CONFIG.PRIMARY_COLOR },
+  addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 4,
   },
-  vegIndicator: {
-    width: 16,
-    height: 16,
-    borderWidth: 1.5,
-    borderRadius: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  vegDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  itemName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  itemDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 8,
-  },
-  itemPrice: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: APP_CONFIG.PRIMARY_COLOR,
-  },
-  addButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-  },
-  viewCartButton: {
+  addBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  floatingCart: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 24,
     left: 16,
     right: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  viewCartText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  floatingCartLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  floatingCartCount: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  floatingCartRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  floatingCartText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });

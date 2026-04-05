@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useContext, ReactNode, useCallback } from 'react';
 import { customerAPI } from '../services/api';
 import { useAuth } from './AuthContext';
 
@@ -16,10 +16,6 @@ interface Cart {
   user_id: string;
   store_id: string;
   items: CartItem[];
-  applied_coupon?: {
-    code: string;
-    discount_amount: number;
-  };
 }
 
 interface Store {
@@ -43,26 +39,21 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
-  const { isAuthenticated, userRole } = useAuth();
+  const { isAuthenticated, appMode } = useAuth();
   const [cart, setCart] = useState<Cart | null>(null);
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(false);
   const [subtotal, setSubtotal] = useState(0);
   const [itemCount, setItemCount] = useState(0);
 
-  useEffect(() => {
-    if (isAuthenticated && userRole === 'customer') {
-      loadCart();
-    } else {
+  const loadCart = useCallback(async () => {
+    if (!isAuthenticated || appMode !== 'customer') {
       setCart(null);
       setStore(null);
       setSubtotal(0);
       setItemCount(0);
+      return;
     }
-  }, [isAuthenticated, userRole]);
-
-  const loadCart = async () => {
-    if (!isAuthenticated || userRole !== 'customer') return;
     
     try {
       setLoading(true);
@@ -71,17 +62,33 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       
       setCart(cartData);
       setStore(storeData);
-      setSubtotal(sub);
-      setItemCount(item_count);
+      setSubtotal(sub || 0);
+      setItemCount(item_count || (cartData?.items?.length || 0));
     } catch (error) {
       console.error('Error loading cart:', error);
+      setCart(null);
+      setStore(null);
+      setSubtotal(0);
+      setItemCount(0);
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAuthenticated, appMode]);
+
+  useEffect(() => {
+    if (isAuthenticated && appMode === 'customer') {
+      loadCart();
+    } else {
+      setCart(null);
+      setStore(null);
+      setSubtotal(0);
+      setItemCount(0);
+    }
+  }, [isAuthenticated, appMode, loadCart]);
 
   const addToCart = async (storeId: string, itemId: string, quantity = 1, variantId?: string) => {
     try {
+      setLoading(true);
       const response = await customerAPI.addToCart({
         store_id: storeId,
         item_id: itemId,
@@ -101,35 +108,47 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       }
       return { success: false, message: 'Failed to add to cart' };
     } catch (error: any) {
+      console.error('Add to cart error:', error);
       return {
         success: false,
         message: error.response?.data?.detail || 'Failed to add to cart',
       };
+    } finally {
+      setLoading(false);
     }
   };
 
   const updateQuantity = async (itemId: string, quantity: number) => {
     try {
+      setLoading(true);
       await customerAPI.updateCartItem({ item_id: itemId, quantity });
       await loadCart();
       return { success: true };
     } catch (error) {
+      console.error('Update quantity error:', error);
       return { success: false, message: 'Failed to update quantity' };
+    } finally {
+      setLoading(false);
     }
   };
 
   const removeItem = async (itemId: string) => {
     try {
+      setLoading(true);
       await customerAPI.removeFromCart(itemId);
       await loadCart();
       return { success: true };
     } catch (error) {
+      console.error('Remove item error:', error);
       return { success: false, message: 'Failed to remove item' };
+    } finally {
+      setLoading(false);
     }
   };
 
   const clearCart = async () => {
     try {
+      setLoading(true);
       await customerAPI.clearCart();
       setCart(null);
       setStore(null);
@@ -137,7 +156,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       setItemCount(0);
       return { success: true };
     } catch (error) {
+      console.error('Clear cart error:', error);
       return { success: false, message: 'Failed to clear cart' };
+    } finally {
+      setLoading(false);
     }
   };
 

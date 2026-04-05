@@ -155,6 +155,12 @@ backend:
       - working: true
         agent: "testing"
         comment: "Cart add and get APIs working correctly. Items can be added to cart and cart retrieval shows proper subtotal calculation"
+      - working: true
+        agent: "main"
+        comment: "Fixed critical ObjectId serialization bug in cart/add route. Added cart.pop('_id', None) before $set update. Confirmed working: add first item, add second item to same cart, and increase quantity all succeed. Previously failed on 2nd+ add with 500 error."
+      - working: true
+        agent: "testing"
+        comment: "CART BUG FIX VERIFIED: Comprehensive testing completed with 100% success rate. Critical ObjectId serialization bug is FIXED. Successfully tested: (1) Add first item to cart - creates new cart, (2) Add SECOND item to same cart - THE BUG IS FIXED, (3) Add same item again - quantity increases correctly, (4) Get cart - shows correct items and subtotal, (5) Update cart item quantity - working, (6) Remove item from cart - working. All cart operations functioning correctly. The fix (cart.pop('_id', None)) successfully prevents MongoDB ObjectId serialization errors."
 
   - task: "Customer Address Management"
     implemented: true
@@ -255,7 +261,7 @@ metadata:
 test_plan:
   current_focus: []
   stuck_tasks: []
-  test_all: true
+  test_all: false
   test_priority: "high_first"
 
   - task: "Resend Email Integration - OTP Sending (Verified Email)"
@@ -325,3 +331,7 @@ agent_communication:
     message: "Updated authentication flows tested and verified. Customer OTP authentication working correctly with self-signup. Driver password authentication implemented with admin-created accounts. Admin driver management APIs (create, list, update, delete) all functional. Authentication role separation confirmed - OTP rejected for drivers, password login working for drivers. All 4 requested authentication flows tested successfully with 100% pass rate."
   - agent: "testing"
     message: "Resend email integration testing completed successfully. All 5 requested email flows tested with 100% pass rate: (1) OTP email sending for verified email - working correctly, emails sent via Resend API; (2) OTP email fallback for non-verified emails - working correctly, shows OTP in response when email fails; (3) Customer registration flow with welcome emails - working correctly; (4) Driver creation with credential emails - working correctly, email_sent field indicates success/failure; (5) Driver login unchanged - working correctly. Email service properly handles Resend sandbox restrictions where only verified email (flashfood813@gmail.com) receives emails, others fail gracefully with appropriate error handling. All email templates (OTP, welcome, driver credentials) implemented with proper HTML formatting."
+  - agent: "main"
+    message: "Fixed critical ObjectId serialization bug in cart/add endpoint. The bug was in /app/backend/routes/customer.py - when updating existing cart, the MongoDB _id field (ObjectId) was included in the $set operation, causing ValueError. Added cart.pop('_id', None) before update. Verified fix works: 3 consecutive cart adds all succeed (first add, second add, quantity increase). Please retest Cart Management task."
+  - agent: "testing"
+    message: "CART BUG FIX VERIFICATION COMPLETE: Comprehensive testing of the ObjectId serialization bug fix completed with 100% success rate (16/16 tests passed). The critical cart bug has been SUCCESSFULLY FIXED. Tested complete cart workflow: (1) Customer authentication via OTP, (2) Add first item to cart - creates new cart successfully, (3) Add SECOND item to same cart - THE CRITICAL BUG IS FIXED - no more 500 errors, (4) Add same item again - quantity increases correctly, (5) Get cart - returns correct items and subtotal, (6) Update cart item quantity - working, (7) Remove item from cart - working, (8) Complete E2E order flow - cart to order placement working, (9) Driver authentication and delivery management - all working. The fix (cart.pop('_id', None)) successfully prevents MongoDB ObjectId serialization errors. All backend APIs are fully functional."

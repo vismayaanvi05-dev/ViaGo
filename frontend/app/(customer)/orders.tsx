@@ -21,7 +21,7 @@ export default function OrdersScreen() {
   const loadOrders = useCallback(async () => {
     try {
       const response = await customerAPI.getOrders(0, 50);
-      setOrders(response.data.orders);
+      setOrders(response.data.orders || []);
     } catch (error) {
       console.error('Error loading orders:', error);
     } finally {
@@ -39,58 +39,97 @@ export default function OrdersScreen() {
     loadOrders();
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusConfig = (status: string) => {
     switch (status) {
-      case 'delivered': return '#10B981';
-      case 'cancelled': return '#EF4444';
-      case 'out_for_delivery': return '#3B82F6';
-      case 'preparing': return '#F59E0B';
-      default: return '#6B7280';
+      case 'delivered':
+        return { color: '#10B981', bg: '#D1FAE5', icon: 'checkmark-circle', label: 'Delivered' };
+      case 'cancelled':
+        return { color: '#EF4444', bg: '#FEE2E2', icon: 'close-circle', label: 'Cancelled' };
+      case 'out_for_delivery':
+        return { color: '#3B82F6', bg: '#DBEAFE', icon: 'bicycle', label: 'On the way' };
+      case 'preparing':
+      case 'confirmed':
+        return { color: '#F59E0B', bg: '#FEF3C7', icon: 'restaurant', label: 'Preparing' };
+      case 'picked_up':
+        return { color: '#8B5CF6', bg: '#EDE9FE', icon: 'bag-check', label: 'Picked up' };
+      default:
+        return { color: '#6B7280', bg: '#F3F4F6', icon: 'time', label: 'Processing' };
     }
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    return date.toLocaleDateString('en-IN', { 
+      day: 'numeric', 
+      month: 'short', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  const renderOrder = ({ item }: { item: any }) => (
-    <View style={styles.orderCard}>
-      <View style={styles.orderHeader}>
-        <Text style={styles.orderNumber}>#{item.order_number}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-            {item.status.replace('_', ' ').toUpperCase()}
-          </Text>
+  const renderOrder = ({ item }: { item: any }) => {
+    const statusConfig = getStatusConfig(item.status);
+    
+    return (
+      <View style={styles.orderCard}>
+        <View style={styles.orderHeader}>
+          <View>
+            <Text style={styles.orderNumber}>#{item.order_number}</Text>
+            <Text style={styles.orderDate}>{formatDate(item.placed_at || item.created_at)}</Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}>
+            <Ionicons name={statusConfig.icon as any} size={14} color={statusConfig.color} />
+            <Text style={[styles.statusText, { color: statusConfig.color }]}>
+              {statusConfig.label}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.storeRow}>
+          <View style={styles.storeIcon}>
+            <Ionicons name="restaurant" size={18} color={APP_CONFIG.PRIMARY_COLOR} />
+          </View>
+          <Text style={styles.storeName}>{item.store_name || 'Restaurant'}</Text>
+        </View>
+        
+        <View style={styles.itemsList}>
+          {item.items?.slice(0, 3).map((orderItem: any, index: number) => (
+            <Text key={index} style={styles.itemText}>
+              {orderItem.quantity}x {orderItem.item_name}
+            </Text>
+          ))}
+          {item.items?.length > 3 && (
+            <Text style={styles.moreItems}>+{item.items.length - 3} more items</Text>
+          )}
+        </View>
+        
+        <View style={styles.orderFooter}>
+          <View>
+            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalAmount}>₹{item.total_amount}</Text>
+          </View>
+          <View style={styles.paymentBadge}>
+            <Ionicons name="cash-outline" size={14} color="#6B7280" />
+            <Text style={styles.paymentText}>
+              {item.payment_method === 'cod' ? 'Cash' : 'Paid'}
+            </Text>
+          </View>
         </View>
       </View>
-      
-      <Text style={styles.storeName}>{item.store_name}</Text>
-      <Text style={styles.orderDate}>{formatDate(item.placed_at || item.created_at)}</Text>
-      
-      <View style={styles.orderItems}>
-        {item.items?.slice(0, 3).map((orderItem: any, index: number) => (
-          <Text key={index} style={styles.itemText}>
-            {orderItem.quantity}x {orderItem.item_name}
-          </Text>
-        ))}
-        {item.items?.length > 3 && (
-          <Text style={styles.moreItems}>+{item.items.length - 3} more items</Text>
-        )}
-      </View>
-      
-      <View style={styles.orderFooter}>
-        <Text style={styles.totalAmount}>₹{item.total_amount}</Text>
-        <Text style={styles.paymentMethod}>{item.payment_method === 'cod' ? 'Cash on Delivery' : 'Paid'}</Text>
-      </View>
-    </View>
-  );
+    );
+  };
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={APP_CONFIG.PRIMARY_COLOR} />
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>My Orders</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={APP_CONFIG.PRIMARY_COLOR} />
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -98,11 +137,14 @@ export default function OrdersScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Orders</Text>
+        <Text style={styles.orderCount}>{orders.length} orders</Text>
       </View>
 
       {orders.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="receipt-outline" size={60} color="#9CA3AF" />
+          <View style={styles.emptyIcon}>
+            <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
+          </View>
           <Text style={styles.emptyTitle}>No orders yet</Text>
           <Text style={styles.emptySubtitle}>Your orders will appear here</Text>
         </View>
@@ -112,8 +154,13 @@ export default function OrdersScreen() {
           renderItem={renderOrder}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh}
+              colors={[APP_CONFIG.PRIMARY_COLOR]}
+            />
           }
         />
       )}
@@ -123,24 +170,100 @@ export default function OrdersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  header: { padding: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#1F2937' },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  headerTitle: { fontSize: 24, fontWeight: '700', color: '#1F2937' },
+  orderCount: { fontSize: 14, color: '#6B7280' },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   listContainer: { padding: 16 },
-  orderCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E5E7EB' },
-  orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  orderNumber: { fontSize: 16, fontWeight: '600', color: '#1F2937' },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  orderCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  orderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  orderNumber: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
+  orderDate: { fontSize: 12, color: '#9CA3AF', marginTop: 4 },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
+  },
   statusText: { fontSize: 12, fontWeight: '600' },
-  storeName: { fontSize: 14, fontWeight: '500', color: '#1F2937', marginBottom: 4 },
-  orderDate: { fontSize: 12, color: '#6B7280', marginBottom: 12 },
-  orderItems: { paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
+  storeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 10,
+  },
+  storeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: APP_CONFIG.PRIMARY_COLOR + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  storeName: { fontSize: 15, fontWeight: '600', color: '#1F2937' },
+  itemsList: {
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
   itemText: { fontSize: 14, color: '#6B7280', marginBottom: 4 },
-  moreItems: { fontSize: 14, color: APP_CONFIG.PRIMARY_COLOR, fontWeight: '500' },
-  orderFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
-  totalAmount: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
-  paymentMethod: { fontSize: 12, color: '#6B7280' },
+  moreItems: { fontSize: 13, color: APP_CONFIG.PRIMARY_COLOR, fontWeight: '500', marginTop: 4 },
+  orderFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  totalLabel: { fontSize: 12, color: '#9CA3AF' },
+  totalAmount: { fontSize: 18, fontWeight: '700', color: '#1F2937', marginTop: 2 },
+  paymentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  paymentText: { fontSize: 13, color: '#6B7280', fontWeight: '500' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: '#1F2937', marginTop: 16, marginBottom: 8 },
-  emptySubtitle: { fontSize: 14, color: '#6B7280' },
+  emptyIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyTitle: { fontSize: 20, fontWeight: '600', color: '#1F2937', marginBottom: 8 },
+  emptySubtitle: { fontSize: 15, color: '#6B7280' },
 });

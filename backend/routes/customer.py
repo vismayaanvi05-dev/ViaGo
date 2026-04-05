@@ -117,6 +117,7 @@ async def add_to_cart(cart_item: dict, current_user: dict = Depends(get_current_
         })
     
     cart["updated_at"] = datetime.utcnow().isoformat()
+    cart.pop("_id", None)
     await db.carts.update_one({"user_id": user_id}, {"$set": cart}, upsert=True)
     return {"success": True, "message": "Item added to cart", "cart": cart}
 
