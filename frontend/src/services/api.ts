@@ -88,6 +88,9 @@ export const driverAPI = {
   updateLocation: (lat: number, lng: number) => apiClient.put('/delivery/location', { lat, lng }),
 };
 
+// Alias for delivery screens
+export const deliveryAPI = driverAPI;
+
 // Admin APIs for managing drivers
 export const adminAPI = {
   createDriver: (data: any) => apiClient.post('/auth/admin/drivers', data),
