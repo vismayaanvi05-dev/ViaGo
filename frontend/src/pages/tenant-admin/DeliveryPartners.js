@@ -16,7 +16,27 @@ const DeliveryPartners = () => {
   const [creating, setCreating] = useState(false);
   
   const toast = (message) => {
-    alert(message.description || message.title);
+    // Simple toast notification - non-blocking
+    const toastMessage = message.description || message.title;
+    console.log('Toast:', toastMessage);
+    
+    // Create a simple toast element
+    const toastEl = document.createElement('div');
+    toastEl.className = 'fixed top-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm';
+    toastEl.innerHTML = `
+      <div class="flex items-start">
+        <div class="flex-1">
+          <p class="text-sm font-semibold text-gray-900">${message.title || 'Notification'}</p>
+          ${message.description ? `<p class="text-sm text-gray-600 mt-1">${message.description}</p>` : ''}
+        </div>
+      </div>
+    `;
+    document.body.appendChild(toastEl);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+      toastEl.remove();
+    }, 3000);
   };
   
   const [newPartner, setNewPartner] = useState({
@@ -58,12 +78,12 @@ const DeliveryPartners = () => {
 
     setCreating(true);
     try {
-      await tenantAdminAPI.createDeliveryPartner(newPartner);
-      toast({
-        title: "Success",
-        description: "Delivery partner created successfully. Login credentials sent via email.",
-      });
+      const response = await tenantAdminAPI.createDeliveryPartner(newPartner);
+      
+      // Close dialog immediately
       setIsCreateDialogOpen(false);
+      
+      // Reset form
       setNewPartner({
         name: '',
         email: '',
@@ -71,6 +91,14 @@ const DeliveryPartners = () => {
         vehicle_type: 'bike',
         vehicle_number: '',
       });
+      
+      // Show success toast
+      toast({
+        title: "Success",
+        description: "Delivery partner created successfully. Login credentials sent via email.",
+      });
+      
+      // Refresh list in background
       fetchPartners();
     } catch (error) {
       toast({
