@@ -38,7 +38,13 @@ apiClient.interceptors.response.use(
 
 export default apiClient;
 
+// Customer APIs (OTP-based auth)
 export const customerAPI = {
+  // Auth - OTP based
+  sendOTP: (email: string) => apiClient.post('/auth/send-otp', { email, role: 'customer' }),
+  verifyOTP: (email: string, otp: string, name?: string) => apiClient.post('/auth/verify-otp', { email, otp, role: 'customer', name }),
+  
+  // App
   getConfig: (lat: number, lng: number) => 
     apiClient.get('/customer/config', { params: { lat, lng } }),
   getStores: (lat: number, lng: number, module?: string, search?: string) =>
@@ -60,13 +66,14 @@ export const customerAPI = {
   placeOrder: (data: any) => apiClient.post('/customer/orders', data),
   getOrders: (skip?: number, limit?: number) => apiClient.get('/customer/orders', { params: { skip, limit } }),
   getOrderDetails: (orderId: string) => apiClient.get(`/customer/orders/${orderId}`),
-  sendOTP: (email: string) => apiClient.post('/auth/send-otp', { email, role: 'customer' }),
-  verifyOTP: (email: string, otp: string, name?: string) => apiClient.post('/auth/verify-otp', { email, otp, role: 'customer', name }),
 };
 
-export const deliveryAPI = {
-  sendOTP: (email: string) => apiClient.post('/auth/send-otp', { email, role: 'delivery_partner' }),
-  verifyOTP: (email: string, otp: string, name?: string) => apiClient.post('/auth/verify-otp', { email, otp, role: 'delivery_partner', name }),
+// Driver APIs (Password-based auth - credentials set by admin)
+export const driverAPI = {
+  // Auth - Password based (credentials set by tenant admin)
+  login: (email: string, password: string) => apiClient.post('/auth/driver/login', { email, password }),
+  
+  // Driver operations
   getProfile: () => apiClient.get('/delivery/profile'),
   updateProfile: (data: any) => apiClient.put('/delivery/profile', data),
   getAvailableDeliveries: (lat: number, lng: number, radius?: number, module?: string) =>
@@ -79,4 +86,13 @@ export const deliveryAPI = {
   getDeliveryHistory: (skip?: number, limit?: number) => apiClient.get('/delivery/history', { params: { skip, limit } }),
   getEarnings: (period?: string) => apiClient.get('/delivery/earnings', { params: { period } }),
   updateLocation: (lat: number, lng: number) => apiClient.put('/delivery/location', { lat, lng }),
+};
+
+// Admin APIs for managing drivers
+export const adminAPI = {
+  createDriver: (data: any) => apiClient.post('/auth/admin/drivers', data),
+  listDrivers: () => apiClient.get('/auth/admin/drivers'),
+  getDriver: (id: string) => apiClient.get(`/auth/admin/drivers/${id}`),
+  updateDriver: (id: string, data: any) => apiClient.put(`/auth/admin/drivers/${id}`, data),
+  deleteDriver: (id: string) => apiClient.delete(`/auth/admin/drivers/${id}`),
 };

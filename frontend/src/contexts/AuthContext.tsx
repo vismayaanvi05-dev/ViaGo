@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { customerAPI, deliveryAPI } from '../services/api';
+import { customerAPI, driverAPI } from '../services/api';
 
 interface User {
   id: string;
@@ -16,10 +16,13 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   isAuthenticated: boolean;
-  userRole: 'customer' | 'delivery_partner' | null;
-  setUserRole: (role: 'customer' | 'delivery_partner') => void;
+  appMode: 'customer' | 'driver' | null;
+  setAppMode: (mode: 'customer' | 'driver') => Promise<void>;
+  // Customer OTP auth
   sendOTP: (email: string) => Promise<{ success: boolean; otp?: string; error?: string }>;
   verifyOTP: (email: string, otp: string, name?: string) => Promise<{ success: boolean; error?: string }>;
+  // Driver password auth
+  driverLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateUser: (userData: any) => Promise<{ success: boolean; error?: string }>;
 }
@@ -30,7 +33,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<'customer' | 'delivery_partner' | null>(null);
+  const [appMode, setAppModeState] = useState<'customer' | 'driver' | null>(null);
 
   useEffect(() => {
     loadStoredAuth();
@@ -40,14 +43,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const storedToken = await AsyncStorage.getItem('authToken');
       const storedUser = await AsyncStorage.getItem('user');
-      const storedRole = await AsyncStorage.getItem('userRole');
+      const storedMode = await AsyncStorage.getItem('appMode');
       
       if (storedToken && storedUser) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
       }
-      if (storedRole) {
-        setUserRole(storedRole as 'customer' | 'delivery_partner');
+      if (storedMode) {
+        setAppModeState(storedMode as 'customer' | 'driver');
       }
     } catch (error) {
       console.error('Error loading auth:', error);
@@ -56,10 +59,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const setAppMode = async (mode: 'customer' | 'driver') => {
+    setAppModeState(mode);
+    await AsyncStorage.setItem('appMode', mode);
+  };
+
+  // Customer OTP authentication
   const sendOTP = async (email: string) => {
     try {
-      const api = userRole === 'delivery_partner' ? deliveryAPI : customerAPI;
-      const response = await api.sendOTP(email);
+      const response = await customerAPI.sendOTP(email);
       return { success: true, otp: response.data.otp };
     } catch (error: any) {
       return { success: false, error: error.response?.data?.detail || 'Failed to send OTP' };
@@ -68,16 +76,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const verifyOTP = async (email: string, otp: string, name?: string) => {
     try {
-      const api = userRole === 'delivery_partner' ? deliveryAPI : customerAPI;
-      const response = await api.verifyOTP(email, otp, name);
+      const response = await customerAPI.verifyOTP(email, otp, name);
       const { access_token, user: userData } = response.data;
       
       await AsyncStorage.setItem('authToken', access_token);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
-      await AsyncStorage.setItem('userRole', userRole || 'customer');
+      await AsyncStorage.setItem('appMode', 'customer');
       
       setToken(access_token);
       setUser(userData);
+      setAppModeState('customer');
       
       return { success: true };
     } catch (error: any) {
@@ -85,14 +93,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Driver password authentication
+  const driverLogin = async (email: string, password: string) => {
+    try {
+      const response = await driverAPI.login(email, password);
+      const { access_token, user: userData } = response.data;
+      
+      await AsyncStorage.setItem('authToken', access_token);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.setItem('appMode', 'driver');
+      
+      setToken(access_token);
+      setUser(userData);
+      setAppModeState('driver');
+      
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.response?.data?.detail || 'Invalid credentials' };
+    }
+  };
+
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('user');
-      await AsyncStorage.removeItem('userRole');
+      await AsyncStorage.removeItem('appMode');
       setToken(null);
       setUser(null);
-      setUserRole(null);
+      setAppModeState(null);
     } catch (error) {
       console.error('Error logging out:', error);
     }
@@ -100,8 +128,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const updateUser = async (userData: any) => {
     try {
-      if (userRole === 'delivery_partner') {
-        await deliveryAPI.updateProfile(userData);
+      if (appMode === 'driver') {
+        await driverAPI.updateProfile(userData);
       } else {
         await customerAPI.updateProfile(userData);
       }
@@ -121,10 +149,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         token,
         loading,
         isAuthenticated: !!token,
-        userRole,
-        setUserRole,
+        appMode,
+        setAppMode,
         sendOTP,
         verifyOTP,
+        driverLogin,
         logout,
         updateUser,
       }}

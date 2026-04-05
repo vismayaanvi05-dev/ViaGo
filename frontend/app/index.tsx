@@ -1,23 +1,23 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/src/contexts/AuthContext';
-import { APP_CONFIG } from '@/src/config';
+import { useAuth } from '../src/contexts/AuthContext';
+import { APP_CONFIG } from '../src/config';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { isAuthenticated, loading, userRole } = useAuth();
+  const { isAuthenticated, loading, appMode } = useAuth();
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      if (userRole === 'delivery_partner') {
+      if (appMode === 'driver') {
         router.replace('/(delivery)/home');
       } else {
         router.replace('/(customer)/home');
       }
     }
-  }, [loading, isAuthenticated, userRole]);
+  }, [loading, isAuthenticated, appMode]);
 
   if (loading) {
     return (
@@ -38,20 +38,22 @@ export default function HomeScreen() {
       <View style={styles.cards}>
         <TouchableOpacity
           style={[styles.card, { backgroundColor: '#8B5CF6' }]}
-          onPress={() => router.push('/(auth)/login?role=customer')}
+          onPress={() => router.push('/(auth)/customer-login')}
         >
           <Ionicons name="cart" size={48} color="#fff" />
           <Text style={styles.cardTitle}>Customer App</Text>
           <Text style={styles.cardDesc}>Order food, groceries & laundry</Text>
+          <Text style={styles.cardAuth}>Sign up with Email OTP</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.card, { backgroundColor: '#10B981' }]}
-          onPress={() => router.push('/(auth)/login?role=delivery_partner')}
+          onPress={() => router.push('/(auth)/driver-login')}
         >
           <Ionicons name="bicycle" size={48} color="#fff" />
-          <Text style={styles.cardTitle}>Delivery Partner</Text>
+          <Text style={styles.cardTitle}>Driver App</Text>
           <Text style={styles.cardDesc}>Accept deliveries & earn money</Text>
+          <Text style={styles.cardAuth}>Login with credentials</Text>
         </TouchableOpacity>
       </View>
 
@@ -103,6 +105,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255,255,255,0.8)',
     marginTop: 4,
+  },
+  cardAuth: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   footer: {
     textAlign: 'center',

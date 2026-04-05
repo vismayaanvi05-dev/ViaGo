@@ -1,5 +1,6 @@
 from jose import jwt
 from datetime import datetime, timedelta
+from passlib.context import CryptContext
 import random
 import string
 import os
@@ -8,6 +9,9 @@ import math
 SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 720
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -23,6 +27,12 @@ def generate_order_number(prefix: str = "ORD") -> str:
     date_part = now.strftime("%Y%m%d")
     random_part = ''.join(random.choices(string.digits, k=3))
     return f"{prefix}{date_part}{random_part}"
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
 
 def calculate_distance(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     R = 6371

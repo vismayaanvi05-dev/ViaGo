@@ -117,7 +117,7 @@ backend:
         agent: "testing"
         comment: "Health check endpoint working correctly. Returns status: healthy, database: connected"
 
-  - task: "Customer Authentication Flow"
+  - task: "Customer OTP Authentication Flow"
     implemented: true
     working: true
     file: "/app/backend/routes/auth.py"
@@ -128,6 +128,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "OTP send and verify working correctly. Customer can authenticate and receive access token"
+      - working: true
+        agent: "testing"
+        comment: "Updated authentication flow tested. Customer OTP authentication working correctly with self-signup. New customers can register with email OTP and receive access tokens. Authentication separation confirmed - OTP only for customers."
 
   - task: "Customer Store Discovery"
     implemented: true
@@ -177,6 +180,42 @@ backend:
         agent: "testing"
         comment: "Order placement working correctly. Order created with proper calculations (subtotal + delivery charge + tax). Order retrieval API returns order history"
 
+  - task: "Driver Password Authentication Flow"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/auth.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Updated driver authentication flow tested. Admin can create drivers with password credentials. Drivers can login using email/password and receive access tokens. Authentication separation confirmed - password-based login for drivers only."
+
+  - task: "Admin Driver Management APIs"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/auth.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Admin driver management APIs working correctly. Can create new drivers, list all drivers, update driver status, and soft delete drivers. All CRUD operations functional."
+
+  - task: "Authentication Role Separation"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/auth.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Authentication separation working correctly. OTP authentication is properly rejected for delivery_partner role with appropriate error message. Customers use OTP, drivers use password authentication."
+
   - task: "Delivery Partner Authentication"
     implemented: true
     working: true
@@ -188,6 +227,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "Delivery partner OTP authentication working correctly. Can authenticate and receive access token"
+      - working: true
+        agent: "testing"
+        comment: "UPDATED: Delivery partner authentication now uses password-based login instead of OTP. Admin creates driver accounts with credentials, drivers login with email/password. Previous OTP-based auth has been replaced."
 
   - task: "Delivery Partner Order Management"
     implemented: true
@@ -219,3 +261,5 @@ test_plan:
 agent_communication:
   - agent: "testing"
     message: "Comprehensive backend API testing completed successfully. All 8 major flows tested and working correctly: Health Check, Customer Auth, Store Discovery, Cart Management, Address Management, Order Placement, Delivery Partner Auth, and Delivery Order Management. Backend URL https://intelligent-chandrasekhar-2.preview.emergentagent.com/api is fully functional. Sample data seeding working properly. All endpoints returning expected responses with proper authentication and authorization."
+  - agent: "testing"
+    message: "Updated authentication flows tested and verified. Customer OTP authentication working correctly with self-signup. Driver password authentication implemented with admin-created accounts. Admin driver management APIs (create, list, update, delete) all functional. Authentication role separation confirmed - OTP rejected for drivers, password login working for drivers. All 4 requested authentication flows tested successfully with 100% pass rate."
