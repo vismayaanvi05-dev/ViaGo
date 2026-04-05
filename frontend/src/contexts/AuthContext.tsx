@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { customerAPI, driverAPI } from '../services/api';
+import apiClient, { customerAPI, driverAPI } from '../services/api';
 
 interface User {
   id: string;
@@ -162,14 +162,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Unified login — tries customer first, then driver, routes based on role
+  // Unified login — uses general login endpoint that handles all roles
   const login = async (email: string, password: string) => {
     try {
-      // Try customer login first
-      const response = await customerAPI.login(email, password);
+      // Try the general /auth/login endpoint (handles all roles)
+      const response = await apiClient.post('/auth/login', { username: email, password });
       const { access_token, user: userData } = response.data;
       const role = userData?.role || 'customer';
-      const mode = (role === 'delivery_partner' || role === 'driver') ? 'driver' : 'customer';
+      
+      // Determine app mode based on role
+      let mode: 'customer' | 'driver' = 'customer';
+      if (role === 'delivery_partner' || role === 'delivery' || role === 'driver') {
+        mode = 'driver';
+      }
       
       await AsyncStorage.setItem('authToken', access_token);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
@@ -180,26 +185,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAppModeState(mode);
       
       return { success: true };
-    } catch (customerError: any) {
-      // If customer login fails, try driver login
+    } catch (error: any) {
+      // If general login fails, try customer-specific and then driver-specific
       try {
-        const response = await driverAPI.login(email, password);
+        const response = await customerAPI.login(email, password);
         const { access_token, user: userData } = response.data;
         
         await AsyncStorage.setItem('authToken', access_token);
         await AsyncStorage.setItem('user', JSON.stringify(userData));
-        await AsyncStorage.setItem('appMode', 'driver');
+        await AsyncStorage.setItem('appMode', 'customer');
         
         setToken(access_token);
         setUser(userData);
-        setAppModeState('driver');
+        setAppModeState('customer');
         
         return { success: true };
-      } catch (driverError: any) {
-        return { 
-          success: false, 
-          error: customerError.response?.data?.detail || 'Invalid credentials' 
-        };
+      } catch (customerError: any) {
+        try {
+          const response = await driverAPI.login(email, password);
+          const { access_token, user: userData } = response.data;
+          
+          await AsyncStorage.setItem('authToken', access_token);
+          await AsyncStorage.setItem('user', JSON.stringify(userData));
+          await AsyncStorage.setItem('appMode', 'driver');
+          
+          setToken(access_token);
+          setUser(userData);
+          setAppModeState('driver');
+          
+          return { success: true };
+        } catch (driverError: any) {
+          return { 
+            success: false, 
+            error: error.response?.data?.detail || 'Invalid credentials' 
+          };
+        }
       }
     }
   };

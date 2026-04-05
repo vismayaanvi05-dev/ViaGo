@@ -106,11 +106,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const addToCart = async (storeId: string, itemId: string, quantity = 1, variantId?: string) => {
     try {
       // Check for store conflict before making API call
-      if (cart && store && cart.store_id !== storeId) {
+      // Use cart.store_id directly (don't require store object)
+      if (cart && cart.items && cart.items.length > 0 && cart.store_id && cart.store_id !== storeId) {
+        const storeName = store?.name || cart.store_id;
         return {
           success: false,
           conflict: true,
-          message: `Your cart has items from ${store.name}. Clear cart to add from a different store.`,
+          message: `Your cart has items from ${storeName}. Clear cart to add from a different category.`,
         };
       }
 

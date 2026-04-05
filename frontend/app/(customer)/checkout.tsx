@@ -28,6 +28,7 @@ export default function CheckoutScreen() {
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [showAddAddress, setShowAddAddress] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [orderError, setOrderError] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [couponDiscount, setCouponDiscount] = useState(0);
@@ -67,19 +68,66 @@ export default function CheckoutScreen() {
       return;
     }
     try {
-      await customerAPI.createAddress({
-        ...newAddress,
-        is_default: addresses.length === 0,
-        lat: 19.0760,
-        lng: 72.8777,
-      });
+      if (editingAddressId) {
+        // Update existing address
+        await customerAPI.updateAddress(editingAddressId, {
+          ...newAddress,
+          lat: 19.0760,
+          lng: 72.8777,
+        });
+        setEditingAddressId(null);
+      } else {
+        // Create new address
+        await customerAPI.createAddress({
+          ...newAddress,
+          is_default: addresses.length === 0,
+          lat: 19.0760,
+          lng: 72.8777,
+        });
+      }
       await loadAddresses();
       setShowAddAddress(false);
       setNewAddress({ address_type: 'home', address_line: '', city: '', state: 'Maharashtra', pincode: '', phone: '' });
       setOrderError('');
     } catch (error) {
-      setOrderError('Failed to add address');
+      setOrderError('Failed to save address');
     }
+  };
+
+  const handleEditAddress = (address: any) => {
+    setEditingAddressId(address.id);
+    setNewAddress({
+      address_type: address.address_type || 'home',
+      address_line: address.address_line || '',
+      city: address.city || '',
+      state: address.state || 'Maharashtra',
+      pincode: address.pincode || '',
+      phone: address.phone || '',
+    });
+    setShowAddAddress(true);
+  };
+
+  const handleDeleteAddress = (addressId: string) => {
+    Alert.alert(
+      'Delete Address',
+      'Are you sure you want to delete this address?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await customerAPI.deleteAddress(addressId);
+              await loadAddresses();
+              if (selectedAddress === addressId) setSelectedAddress(null);
+            } catch (error) {
+              setOrderError('Failed to delete address');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handlePlaceOrder = async () => {
@@ -244,8 +292,22 @@ export default function CheckoutScreen() {
                   onChangeText={(text) => setNewAddress({ ...newAddress, phone: text })}
                 />
                 <TouchableOpacity style={styles.saveAddressBtn} onPress={handleAddAddress}>
-                  <Text style={styles.saveAddressBtnText}>Save Address</Text>
+                  <Text style={styles.saveAddressBtnText}>
+                    {editingAddressId ? 'Update Address' : 'Save Address'}
+                  </Text>
                 </TouchableOpacity>
+                {(editingAddressId || showAddAddress) && (
+                  <TouchableOpacity 
+                    style={styles.cancelAddressBtn} 
+                    onPress={() => {
+                      setShowAddAddress(false);
+                      setEditingAddressId(null);
+                      setNewAddress({ address_type: 'home', address_line: '', city: '', state: 'Maharashtra', pincode: '', phone: '' });
+                    }}
+                  >
+                    <Text style={styles.cancelAddressBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
 
@@ -272,18 +334,40 @@ export default function CheckoutScreen() {
                     {selectedAddress === address.id && <View style={styles.radioDot} />}
                   </View>
                   <View style={styles.addressContent}>
-                    <View style={styles.addressTypeTag}>
-                      <Ionicons 
-                        name={address.address_type === 'home' ? 'home' : address.address_type === 'work' ? 'briefcase' : 'location'} 
-                        size={12} 
-                        color="#6B7280" 
-                      />
-                      <Text style={styles.addressTypeTagText}>
-                        {address.address_type?.toUpperCase() || 'HOME'}
-                      </Text>
+                    <View style={styles.addressTopRow}>
+                      <View style={styles.addressTypeTag}>
+                        <Ionicons 
+                          name={address.address_type === 'home' ? 'home' : address.address_type === 'work' ? 'briefcase' : 'location'} 
+                          size={12} 
+                          color="#6B7280" 
+                        />
+                        <Text style={styles.addressTypeTagText}>
+                          {address.address_type?.toUpperCase() || 'HOME'}
+                        </Text>
+                        {address.is_default && (
+                          <View style={styles.defaultBadge}>
+                            <Text style={styles.defaultBadgeText}>Default</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.addressActions}>
+                        <TouchableOpacity
+                          style={styles.addressActionBtn}
+                          onPress={() => handleEditAddress(address)}
+                        >
+                          <Ionicons name="pencil" size={14} color="#3B82F6" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.addressActionBtn}
+                          onPress={() => handleDeleteAddress(address.id)}
+                        >
+                          <Ionicons name="trash" size={14} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                     <Text style={styles.addressText}>{address.address_line}</Text>
                     <Text style={styles.addressCity}>{address.city}, {address.pincode}</Text>
+                    {address.phone ? <Text style={styles.addressPhone}>{address.phone}</Text> : null}
                   </View>
                 </TouchableOpacity>
               ))
@@ -540,6 +624,14 @@ const styles = StyleSheet.create({
   addressTypeTagText: { fontSize: 10, fontWeight: '600', color: '#6B7280' },
   addressText: { fontSize: 14, color: '#1F2937', marginBottom: 4, lineHeight: 20 },
   addressCity: { fontSize: 13, color: '#6B7280' },
+  addressPhone: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+  addressTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  addressActions: { flexDirection: 'row', gap: 8 },
+  addressActionBtn: { padding: 4 },
+  defaultBadge: { backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 6 },
+  defaultBadgeText: { fontSize: 9, fontWeight: '700', color: '#16A34A' },
+  cancelAddressBtn: { padding: 14, borderRadius: 10, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: '#E5E7EB' },
+  cancelAddressBtnText: { color: '#6B7280', fontWeight: '600', fontSize: 15 },
   paymentOption: {
     flexDirection: 'row',
     alignItems: 'center',

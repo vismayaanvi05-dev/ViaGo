@@ -23,10 +23,15 @@ async def get_available_orders(
 ):
     """
     Get available delivery orders (status: ready, not assigned)
+    Only shows orders from the driver's tenant.
     """
-    await require_role(current_user, ["delivery"])
+    await require_role(current_user, ["delivery", "delivery_partner"])
+    tenant_id = current_user.get("tenant_id")
     
-    # Get orders that are ready for pickup and not assigned
+    # Build query — filter by tenant_id to only show tenant's orders
+    query = {"status": "pending"}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     deliveries = await db.deliveries.find(
         {"status": "pending"},
         {"_id": 0}
@@ -75,7 +80,7 @@ async def get_my_deliveries(
     """
     Get delivery partner's assigned deliveries
     """
-    await require_role(current_user, ["delivery"])
+    await require_role(current_user, ["delivery", "delivery_partner"])
     user_id = current_user["user_id"]
     
     query = {"delivery_partner_id": user_id}
@@ -138,7 +143,7 @@ async def accept_delivery(
     """
     Accept delivery assignment
     """
-    await require_role(current_user, ["delivery"])
+    await require_role(current_user, ["delivery", "delivery_partner"])
     user_id = current_user["user_id"]
     
     delivery = await db.deliveries.find_one({"id": delivery_id})
@@ -179,7 +184,7 @@ async def update_delivery_status(
     """
     Update delivery status (picked_up, in_transit, delivered, failed)
     """
-    await require_role(current_user, ["delivery"])
+    await require_role(current_user, ["delivery", "delivery_partner"])
     user_id = current_user["user_id"]
     
     delivery = await db.deliveries.find_one({"id": delivery_id, "delivery_partner_id": user_id})
@@ -279,7 +284,7 @@ async def get_earnings(
     """
     Get delivery partner earnings summary
     """
-    await require_role(current_user, ["delivery"])
+    await require_role(current_user, ["delivery", "delivery_partner"])
     user_id = current_user["user_id"]
     
     # Count completed deliveries

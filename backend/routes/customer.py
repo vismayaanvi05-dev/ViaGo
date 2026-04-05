@@ -650,13 +650,13 @@ async def update_cart_item(
     
     cart["updated_at"] = datetime.utcnow().isoformat()
     
-    # Remove _id before update to avoid serialization issues
-    cart.pop("_id", None)
-    
     await db.carts.update_one(
         {"user_id": user_id},
-        {"$set": cart}
+        {"$set": {"items": cart["items"], "updated_at": cart["updated_at"]}}
     )
+    
+    # Remove _id before returning
+    cart.pop("_id", None)
     
     return {"success": True, "message": "Cart updated", "cart": cart}
 
@@ -687,9 +687,11 @@ async def remove_from_cart(
     
     await db.carts.update_one(
         {"user_id": user_id},
-        {"$set": cart}
+        {"$set": {"items": cart["items"], "updated_at": cart["updated_at"]}}
     )
     
+    # Remove _id before returning
+    cart.pop("_id", None)
     return {"success": True, "message": "Item removed from cart", "cart": cart}
 
 @router.delete("/cart/clear")

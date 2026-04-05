@@ -77,23 +77,27 @@ export default function GroceryView({ searchQuery }: { searchQuery?: string }) {
 
   const handleAdd = async (product: GroceryProduct) => {
     const storeId = product.tenant_id ? `${product.tenant_id}_grocery` : virtualStoreId;
-    const result = await addToCart(storeId, product.id, 1);
-    if (result.conflict) {
-      Alert.alert(
-        'Replace cart items?',
-        'Your cart contains items from a different category. Would you like to clear it and add this item?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Clear & Add',
-            style: 'destructive',
-            onPress: async () => {
-              await clearCart();
-              await addToCart(storeId, product.id, 1);
+    try {
+      const result = await addToCart(storeId, product.id, 1);
+      if (result && result.conflict) {
+        Alert.alert(
+          'Replace cart items?',
+          result.message || 'Your cart contains items from a different category. Clear cart to add this item?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Clear & Add',
+              style: 'destructive',
+              onPress: async () => {
+                await clearCart();
+                await addToCart(storeId, product.id, 1);
+              },
             },
-          },
-        ]
-      );
+          ]
+        );
+      }
+    } catch (e) {
+      console.error('Add to cart error:', e);
     }
   };
 

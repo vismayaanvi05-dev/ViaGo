@@ -67,6 +67,7 @@ export const customerAPI = {
   getAddresses: () => apiClient.get('/customer/addresses'),
   createAddress: (data: any) => apiClient.post('/customer/addresses', data),
   deleteAddress: (id: string) => apiClient.delete(`/customer/addresses/${id}`),
+  updateAddress: (id: string, data: any) => apiClient.put(`/customer/addresses/${id}`, data),
   placeOrder: (data: any) => apiClient.post('/customer/orders', data),
   getOrders: (skip?: number, limit?: number) => apiClient.get('/customer/orders', { params: { skip, limit } }),
   getOrderDetails: (orderId: string) => apiClient.get(`/customer/orders/${orderId}`),
