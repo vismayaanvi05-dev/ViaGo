@@ -101,7 +101,8 @@ export default function CheckoutScreen() {
         items: cart.items.map((item: any) => ({
           item_id: item.item_id,
           quantity: item.quantity,
-          variant_id: item.variant_id,
+          variant_id: item.variant_id || null,
+          add_ons: item.add_ons || [],
         })),
         payment_method: paymentMethod,
         delivery_type: 'instant',

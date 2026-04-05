@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { customerAPI } from '@/src/services/api';
@@ -34,7 +34,7 @@ interface GroceryCategory {
 
 export default function GroceryView({ searchQuery }: { searchQuery?: string }) {
   const { location, address } = useLocation();
-  const { addToCart, getItemQuantity, updateQuantity, removeItem, cart } = useCart();
+  const { addToCart, getItemQuantity, updateQuantity, removeItem, cart, clearCart } = useCart();
   const [categories, setCategories] = useState<GroceryCategory[]>([]);
   const [allProducts, setAllProducts] = useState<GroceryProduct[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -77,7 +77,24 @@ export default function GroceryView({ searchQuery }: { searchQuery?: string }) {
 
   const handleAdd = async (product: GroceryProduct) => {
     const storeId = product.tenant_id ? `${product.tenant_id}_grocery` : virtualStoreId;
-    await addToCart(storeId, product.id, 1);
+    const result = await addToCart(storeId, product.id, 1);
+    if (result.conflict) {
+      Alert.alert(
+        'Replace cart items?',
+        'Your cart contains items from a different category. Would you like to clear it and add this item?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Clear & Add',
+            style: 'destructive',
+            onPress: async () => {
+              await clearCart();
+              await addToCart(storeId, product.id, 1);
+            },
+          },
+        ]
+      );
+    }
   };
 
   const handleIncrement = async (product: GroceryProduct) => {

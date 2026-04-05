@@ -18,6 +18,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   appMode: 'customer' | 'driver' | null;
   setAppMode: (mode: 'customer' | 'driver') => Promise<void>;
+  // Unified login — routes based on role
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   // Customer OTP auth
   sendOTP: (email: string) => Promise<{ success: boolean; otp?: string; email_sent?: boolean; error?: string }>;
   verifyOTP: (email: string, otp: string, name?: string) => Promise<{ success: boolean; error?: string }>;
@@ -160,6 +162,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Unified login — tries customer first, then driver, routes based on role
+  const login = async (email: string, password: string) => {
+    try {
+      // Try customer login first
+      const response = await customerAPI.login(email, password);
+      const { access_token, user: userData } = response.data;
+      const role = userData?.role || 'customer';
+      const mode = (role === 'delivery_partner' || role === 'driver') ? 'driver' : 'customer';
+      
+      await AsyncStorage.setItem('authToken', access_token);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.setItem('appMode', mode);
+      
+      setToken(access_token);
+      setUser(userData);
+      setAppModeState(mode);
+      
+      return { success: true };
+    } catch (customerError: any) {
+      // If customer login fails, try driver login
+      try {
+        const response = await driverAPI.login(email, password);
+        const { access_token, user: userData } = response.data;
+        
+        await AsyncStorage.setItem('authToken', access_token);
+        await AsyncStorage.setItem('user', JSON.stringify(userData));
+        await AsyncStorage.setItem('appMode', 'driver');
+        
+        setToken(access_token);
+        setUser(userData);
+        setAppModeState('driver');
+        
+        return { success: true };
+      } catch (driverError: any) {
+        return { 
+          success: false, 
+          error: customerError.response?.data?.detail || 'Invalid credentials' 
+        };
+      }
+    }
+  };
+
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('authToken');
@@ -198,6 +242,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAuthenticated: !!token,
         appMode,
         setAppMode,
+        login,
         sendOTP,
         verifyOTP,
         customerSignup,

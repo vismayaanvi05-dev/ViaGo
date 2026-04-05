@@ -592,8 +592,27 @@ async def get_cart(
     for item in cart.get("items", []):
         subtotal += item["unit_price"] * item["quantity"]
     
-    # Get store info
-    store = await db.stores.find_one({"id": cart.get("store_id")}, {"_id": 0})
+    # Get store info (handle virtual grocery/laundry stores)
+    store_id = cart.get("store_id", "")
+    store = None
+    
+    if "_grocery" in store_id or "_laundry" in store_id:
+        # Virtual store - build from tenant
+        parts = store_id.rsplit("_", 1)
+        tenant_id = parts[0] if len(parts) == 2 else store_id
+        module_type = parts[1] if len(parts) == 2 else "grocery"
+        tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+        if tenant:
+            store = {
+                "id": store_id,
+                "name": f"{tenant.get('name', 'Store')} - {module_type.capitalize()}",
+                "store_type": module_type,
+                "city": tenant.get("town", "").capitalize() if tenant.get("town") else "",
+                "is_active": True,
+                "is_virtual": True,
+            }
+    else:
+        store = await db.stores.find_one({"id": store_id}, {"_id": 0})
     
     return {
         "cart": cart,
@@ -1531,13 +1550,37 @@ async def place_order(
     await require_role(current_user, ["customer"])
     user_id = current_user["user_id"]
     
-    # Validate store
-    store = await db.stores.find_one({"id": order_data.store_id})
-    if not store:
-        raise HTTPException(status_code=404, detail="Store not found")
+    store_id = order_data.store_id
+    is_virtual = "_grocery" in store_id or "_laundry" in store_id
     
-    if not store["is_active"] or not store["is_accepting_orders"]:
-        raise HTTPException(status_code=400, detail="Store not accepting orders")
+    if is_virtual:
+        # Virtual store (grocery/laundry) — get tenant info
+        parts = store_id.rsplit("_", 1)
+        tenant_id = parts[0] if len(parts) == 2 else store_id
+        module_type = parts[1] if len(parts) == 2 else "grocery"
+        
+        tenant = await db.tenants.find_one({"id": tenant_id})
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        store = {
+            "id": store_id,
+            "tenant_id": tenant_id,
+            "name": f"{tenant.get('name', 'Store')} - {module_type.capitalize()}",
+            "store_type": module_type,
+            "is_active": True,
+            "is_accepting_orders": True,
+        }
+    else:
+        # Regular store
+        store = await db.stores.find_one({"id": store_id})
+        if not store:
+            raise HTTPException(status_code=404, detail="Store not found")
+        
+        if not store["is_active"] or not store["is_accepting_orders"]:
+            raise HTTPException(status_code=400, detail="Store not accepting orders")
+        
+        tenant_id = store.get("tenant_id")
     
     # Validate address
     address = await db.addresses.find_one({"id": order_data.delivery_address_id, "user_id": user_id})
@@ -1548,11 +1591,10 @@ async def place_order(
     address.pop("_id", None)
     
     # Get tenant settings (with fallback defaults)
-    settings = await db.tenant_settings.find_one({"tenant_id": store["tenant_id"]})
+    settings = await db.tenant_settings.find_one({"tenant_id": tenant_id})
     if not settings:
-        # Use sensible defaults so orders can still be placed
         settings = {
-            "tenant_id": store["tenant_id"],
+            "tenant_id": tenant_id,
             "delivery_charge_type": "flat",
             "flat_delivery_charge": 30,
             "delivery_charge_per_km": 0,
@@ -1566,39 +1608,57 @@ async def place_order(
     admin_markup_total = 0
     order_items = []
     
+    module_type = store.get("store_type", "restaurant")
+    
     for item_data in order_data.items:
-        # Get item
-        item = await db.items.find_one({"id": item_data["item_id"]})
-        if not item or not item["is_available"]:
-            raise HTTPException(status_code=400, detail=f"Item {item_data['item_id']} not available")
+        item = None
+        unit_price = 0
+        item_name = ""
+        
+        if is_virtual and "_grocery" in store_id:
+            # Grocery product
+            item = await db.grocery_products.find_one({"id": item_data["item_id"]})
+            if not item:
+                raise HTTPException(status_code=400, detail=f"Grocery item {item_data['item_id']} not found")
+            unit_price = item.get("selling_price") or item.get("mrp", 0)
+            item_name = item.get("name", "")
+            
+        elif is_virtual and "_laundry" in store_id:
+            # Laundry item
+            item = await db.laundry_items.find_one({"id": item_data["item_id"]})
+            if not item:
+                raise HTTPException(status_code=400, detail=f"Laundry item {item_data['item_id']} not found")
+            item_name = item.get("name", "")
+            # Get pricing
+            pricing = await db.laundry_pricing.find_one({"item_id": item_data["item_id"], "is_active": True})
+            unit_price = pricing.get("price", 0) if pricing else 0
+            
+        else:
+            # Regular food item
+            item = await db.items.find_one({"id": item_data["item_id"]})
+            if not item or not item.get("is_available"):
+                raise HTTPException(status_code=400, detail=f"Item {item_data['item_id']} not available")
+            unit_price = item.get("base_price", item.get("price", 0))
+            item_name = item.get("name", "")
         
         # Get variant if specified
-        variant = None
         variant_name = None
-        unit_price = item["base_price"]
-        
-        if item_data.get("variant_id"):
+        if item_data.get("variant_id") and not is_virtual:
             variant = await db.item_variants.find_one({"id": item_data["variant_id"]})
             if variant:
                 unit_price = variant["price"]
                 variant_name = variant["name"]
         
-        # Calculate item price with admin markup
-        admin_markup_per_item = item.get("admin_markup_amount", 0)
+        admin_markup_per_item = item.get("admin_markup_amount", 0) if item else 0
         item_price_with_markup = unit_price + admin_markup_per_item
         
-        # Calculate add-ons
         addons_total = 0
         addons_list = []
         for addon_id in item_data.get("add_ons", []):
             addon = await db.add_ons.find_one({"id": addon_id})
             if addon:
                 addons_total += addon["price"]
-                addons_list.append({
-                    "id": addon["id"],
-                    "name": addon["name"],
-                    "price": addon["price"]
-                })
+                addons_list.append({"id": addon["id"], "name": addon["name"], "price": addon["price"]})
         
         quantity = item_data["quantity"]
         total_item_price = (item_price_with_markup + addons_total) * quantity
@@ -1606,11 +1666,10 @@ async def place_order(
         subtotal += total_item_price
         admin_markup_total += admin_markup_per_item * quantity
         
-        # Create order item
         order_item = {
             "id": str(uuid.uuid4()),
-            "item_id": item["id"],
-            "item_name": item["name"],
+            "item_id": item_data["item_id"],
+            "item_name": item_name,
             "variant_id": item_data.get("variant_id"),
             "variant_name": variant_name,
             "quantity": quantity,
