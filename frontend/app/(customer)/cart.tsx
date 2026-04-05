@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   SafeAreaView,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -195,7 +196,7 @@ export default function CartScreen() {
       </View>
 
       {/* Clear Cart Confirmation */}
-      {showClearConfirm && (
+      <Modal visible={showClearConfirm} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.confirmModal}>
             <View style={styles.confirmIconWrap}>
@@ -224,7 +225,7 @@ export default function CartScreen() {
             </View>
           </View>
         </View>
-      )}
+      </Modal>
     </SafeAreaView>
   );
 }

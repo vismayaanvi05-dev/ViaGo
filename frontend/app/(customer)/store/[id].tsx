@@ -6,10 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   SafeAreaView,
   RefreshControl,
-  Animated,
+  Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -295,7 +294,7 @@ export default function StoreDetailsScreen() {
       )}
 
       {/* Store Conflict Modal */}
-      {showConflict && (
+      <Modal visible={!!showConflict} transparent animationType="fade">
         <View style={styles.conflictOverlay}>
           <View style={styles.conflictModal}>
             <View style={styles.conflictIconContainer}>
@@ -321,7 +320,7 @@ export default function StoreDetailsScreen() {
             </View>
           </View>
         </View>
-      )}
+      </Modal>
     </SafeAreaView>
   );
 }
