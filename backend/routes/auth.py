@@ -4,6 +4,7 @@ from models.user import OTPRequest, OTPVerify, LoginResponse, User, UserCreate
 from models.tenant import Tenant
 from utils.helpers import generate_otp, create_access_token
 from services.sms_service import send_otp as send_sms_otp, verify_otp as verify_sms_otp
+from services.email_service import send_otp_email, send_welcome_email
 from datetime import datetime, timedelta, timezone
 import os
 import random
@@ -12,7 +13,7 @@ import uuid
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 # In-memory OTP storage (for fallback/mock mode only)
-# When using Twilio Verify, this storage is not used
+# When using Twilio/Resend, storage may not be needed
 otp_storage = {}
 
 def get_db():
@@ -22,34 +23,66 @@ def get_db():
 @router.post("/send-otp")
 async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
     """
-    Send OTP to phone number via Twilio SMS
-    Falls back to mock mode if Twilio is not configured
+    Send OTP via SMS (Twilio) or Email (Resend)
+    Supports both delivery methods with automatic fallback to mock mode
     """
     try:
-        # Send OTP via Twilio (or mock mode)
-        result = await send_sms_otp(request.phone)
+        # Validate that required contact info is provided
+        if request.delivery_method == "sms" and not request.phone:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number required for SMS delivery"
+            )
+        if request.delivery_method == "email" and not request.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email address required for email delivery"
+            )
         
-        # If mock mode, store OTP for verification
-        if result.get("mock"):
-            otp_storage[request.phone] = {
-                "otp": result["otp"],
+        # Send OTP based on delivery method
+        if request.delivery_method == "email":
+            # Generate OTP for email (Resend doesn't manage OTP like Twilio Verify)
+            otp = generate_otp(6)
+            result = await send_otp_email(request.email, otp, "User")
+            contact = request.email
+            
+            # Store OTP for verification (always needed for email)
+            otp_storage[contact] = {
+                "otp": otp,
+                "delivery_method": "email",
                 "expires_at": datetime.utcnow() + timedelta(minutes=5),
                 "attempts": 0
             }
+            
+        else:  # SMS
+            result = await send_sms_otp(request.phone)
+            contact = request.phone
+            
+            # Store OTP if mock mode
+            if result.get("mock"):
+                otp_storage[contact] = {
+                    "otp": result["otp"],
+                    "delivery_method": "sms",
+                    "expires_at": datetime.utcnow() + timedelta(minutes=5),
+                    "attempts": 0
+                }
         
         response = {
             "success": True,
             "message": result["message"],
-            "phone": request.phone
+            "delivery_method": request.delivery_method,
+            "contact": contact
         }
         
         # Only include OTP in response for mock/development mode
-        if result.get("mock"):
-            response["otp"] = result["otp"]
-            response["note"] = "OTP shown for testing only - not sent via SMS"
+        if result.get("mock") or request.delivery_method == "email":
+            response["otp"] = result.get("otp") or otp_storage[contact]["otp"]
+            response["note"] = f"OTP shown for testing only - not sent via {request.delivery_method.upper()}" if result.get("mock") else "Check your email for OTP"
         
         return response
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -60,14 +93,25 @@ async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_d
 async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_db)):
     """
     Verify OTP and login/register user
-    Works with both Twilio Verify API and mock mode
+    Supports both SMS (Twilio) and Email (Resend) verification
     """
-    # Try Twilio Verify first (production mode)
-    is_valid = await verify_sms_otp(request.phone, request.otp)
+    # Determine contact identifier (email or phone)
+    contact = request.email if request.email else request.phone
     
-    # If not using Twilio (mock mode), check local storage
+    if not contact:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either phone or email required for verification"
+        )
+    
+    # Try Twilio Verify for SMS (production mode)
+    is_valid = False
+    if request.phone:
+        is_valid = await verify_sms_otp(request.phone, request.otp)
+    
+    # If not valid via Twilio or if email method, check local storage
     if not is_valid:
-        stored_otp_data = otp_storage.get(request.phone)
+        stored_otp_data = otp_storage.get(contact)
         
         if not stored_otp_data:
             raise HTTPException(
@@ -77,7 +121,7 @@ async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_
         
         # Check expiry
         if datetime.utcnow() > stored_otp_data["expires_at"]:
-            del otp_storage[request.phone]
+            del otp_storage[contact]
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="OTP expired. Please request a new OTP."
@@ -87,7 +131,7 @@ async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_
         if stored_otp_data["otp"] != request.otp:
             stored_otp_data["attempts"] += 1
             if stored_otp_data["attempts"] >= 3:
-                del otp_storage[request.phone]
+                del otp_storage[contact]
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Too many failed attempts. Please request a new OTP."
@@ -106,12 +150,18 @@ async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_
             detail="Invalid OTP"
         )
     
-    # Clean up storage if using mock mode
-    if request.phone in otp_storage:
-        del otp_storage[request.phone]
+    # Clean up storage
+    if contact in otp_storage:
+        del otp_storage[contact]
     
-    # Check if user exists
-    user_doc = await db.users.find_one({"phone": request.phone, "role": request.role})
+    # Check if user exists (search by both phone and email)
+    query = {"role": request.role}
+    if request.phone:
+        query["phone"] = request.phone
+    elif request.email:
+        query["email"] = request.email
+    
+    user_doc = await db.users.find_one(query, {"_id": 0})
     
     tenant_doc = None
     

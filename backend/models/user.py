@@ -34,11 +34,14 @@ class UserUpdate(BaseModel):
 # ==================== AUTH MODELS ====================
 
 class OTPRequest(BaseModel):
-    phone: str
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    delivery_method: str = Field(default="sms", description="Delivery method: 'sms' or 'email'")
     role: Optional[str] = "customer"  # Default role for registration
 
 class OTPVerify(BaseModel):
-    phone: str
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
     otp: str
     role: Optional[str] = "customer"
     name: Optional[str] = None  # For new user registration
