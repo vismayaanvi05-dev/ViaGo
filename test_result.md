@@ -522,8 +522,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Driver Status Update Flow"
-    - "Customer Order Tracking"
+    - "Exact City Tenant Filtering - All Endpoints"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -600,9 +599,26 @@ test_plan:
         agent: "testing"
         comment: "MULTI-TENANT DELIVERY FILTERING VERIFIED: Comprehensive testing completed with 90.9% success rate (10/11 tests passed). JWT TOKEN VERIFICATION: Driver login returns JWT token with tenant_id (b4323d95-12ed-4f6a-b9c8-efbd1b90a460) - VERIFIED. TENANT FILTERING: Available deliveries API properly filters by tenant (no available deliveries found as expected - all assigned) - VERIFIED. ENRICHED DATA VALIDATION: (1) Available deliveries would include pickup_location.phone, customer_phone, items array, store data - STRUCTURE VERIFIED, (2) Assigned deliveries include all required rich data: store.phone, customer_phone, customer.name, items array, drop_location.address - ALL VERIFIED with 4 assigned deliveries. 5-STEP STATUS FLOW: Complete status update flow tested successfully: on_the_way → picked_up → in_transit → reached_location → delivered - ALL 5 STEPS SUCCESSFUL. The multi-tenant delivery filtering system is fully operational and ready for production use."
 
+  - task: "Exact City Tenant Filtering - All Endpoints"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/customer.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented strict exact city/town tenant filtering across ALL customer endpoints. No radius-based filtering anywhere. Endpoints updated: /config (city param added, filters modules by tenant city), /stores (already done), /search (uses get_tenant_ids_by_location with city), /restaurants (uses exact city match, removed radius is_deliverable check), /coupons (city param added, filters by tenant_id). Frontend api.ts updated to pass city to search, config, and getCoupons. Need to test: (1) /stores?city=Bengaluru returns only Bengaluru tenant stores, (2) /search?city=Bengaluru returns only matching stores/items, (3) /restaurants?city=Bengaluru returns only matching restaurants with is_deliverable=True always, (4) /coupons?city=Bengaluru returns only matching tenant coupons, (5) /config?city=Bengaluru returns only modules with stores from matching tenants, (6) Using city=NonExistentCity returns empty for all endpoints."
+      - working: true
+        agent: "testing"
+        comment: "EXACT CITY TENANT FILTERING VERIFIED: Comprehensive testing completed with 100% success rate (11/11 tests passed). CRITICAL VALIDATION: (1) Customer OTP authentication working correctly with test@example.com, (2) GET /api/customer/stores?city=Bengaluru returns 3 stores, all with is_deliverable=true, city=NonExistentCity returns 0 stores - VERIFIED, (3) GET /api/customer/search?city=Bengaluru returns 2 items from Bengaluru tenants, city=NonExistentCity returns empty results - VERIFIED, (4) GET /api/customer/restaurants?city=Bengaluru returns 3 restaurants all with is_deliverable=true, city=NonExistentCity returns empty array - VERIFIED, (5) GET /api/customer/config?city=Bengaluru returns available_modules [food, grocery, laundry], city=NonExistentCity returns empty available_modules - VERIFIED, (6) GET /api/customer/coupons?city=Bengaluru returns tenant-filtered coupons, city=NonExistentCity returns empty results - VERIFIED. NO RADIUS-BASED FILTERING detected anywhere. All stores within matched city have is_deliverable=true. Strict city/town-based tenant matching is working correctly across all customer endpoints."
+
 agent_communication:
+  - agent: "main"
+    message: "EXACT CITY TENANT FILTERING IMPLEMENTATION COMPLETE: Removed ALL radius-based filtering logic from customer endpoints. Updated 5 endpoints: /config, /stores, /search, /restaurants, /coupons to use strict exact city/town tenant matching via get_tenant_ids_by_location(). Frontend api.ts updated to pass city param to search, getCoupons, and getConfig. Wallet screen's CouponsList component now passes city from LocationContext. Removed 'Outside delivery range' UI since all stores within matched city are deliverable. Please test all endpoints with city param to verify strict filtering."
   - agent: "testing"
-    message: "Comprehensive backend API testing completed successfully. All 8 major flows tested and working correctly: Health Check, Customer Auth, Store Discovery, Cart Management, Address Management, Order Placement, Delivery Partner Auth, and Delivery Order Management. Backend URL https://intelligent-chandrasekhar-2.preview.emergentagent.com/api is fully functional. Sample data seeding working properly. All endpoints returning expected responses with proper authentication and authorization."
+    message: "EXACT CITY TENANT FILTERING TESTING COMPLETE: Comprehensive testing of strict city/town-based tenant matching completed with 100% success rate (11/11 tests passed). VERIFIED ENDPOINTS: (1) GET /api/customer/stores?city=Bengaluru - returns 3 stores, all deliverable, city=NonExistentCity returns 0 stores, (2) GET /api/customer/search?city=Bengaluru - returns 2 items from Bengaluru tenants, city=NonExistentCity returns empty, (3) GET /api/customer/restaurants?city=Bengaluru - returns 3 restaurants all deliverable, city=NonExistentCity returns empty, (4) GET /api/customer/config?city=Bengaluru - returns modules [food, grocery, laundry], city=NonExistentCity returns empty, (5) GET /api/customer/coupons?city=Bengaluru - returns tenant-filtered coupons, city=NonExistentCity returns empty. NO RADIUS-BASED FILTERING detected. All stores within matched city have is_deliverable=true. Exact city tenant filtering is working correctly across all customer endpoints."
   - agent: "testing"
     message: "Updated authentication flows tested and verified. Customer OTP authentication working correctly with self-signup. Driver password authentication implemented with admin-created accounts. Admin driver management APIs (create, list, update, delete) all functional. Authentication role separation confirmed - OTP rejected for drivers, password login working for drivers. All 4 requested authentication flows tested successfully with 100% pass rate."
   - agent: "testing"

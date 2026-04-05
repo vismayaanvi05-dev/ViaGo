@@ -26,11 +26,16 @@ def get_db():
 async def get_app_config(
     lat: float = None,
     lng: float = None,
+    city: str = None,
+    town: str = None,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
-    Get app configuration and available modules based on location
+    Get app configuration and available modules based on exact city/town match.
+    Only returns modules that have active stores from tenants in the customer's city.
     """
+    from utils.helpers import get_tenant_ids_by_location
+
     # Default config
     config = {
         "app_name": "HyperServe",
@@ -41,39 +46,35 @@ async def get_app_config(
             "secondary_color": "#EC4899"
         }
     }
-    
-    # Check which modules have active stores nearby
-    if lat and lng:
-        # Check Food stores
-        food_stores = await db.stores.find({
-            "store_type": "restaurant",
-            "is_active": True,
-            "is_accepting_orders": True
-        }).to_list(1)
-        if food_stores:
-            config["available_modules"].append("food")
-        
-        # Check Grocery stores
-        grocery_stores = await db.stores.find({
-            "store_type": "grocery",
-            "is_active": True,
-            "is_accepting_orders": True
-        }).to_list(1)
-        if grocery_stores:
-            config["available_modules"].append("grocery")
-        
-        # Check Laundry stores
-        laundry_stores = await db.stores.find({
-            "store_type": "laundry",
-            "is_active": True,
-            "is_accepting_orders": True
-        }).to_list(1)
-        if laundry_stores:
-            config["available_modules"].append("laundry")
-    else:
-        # If no location, show all modules
-        config["available_modules"] = ["food", "grocery", "laundry"]
-    
+
+    # Get matching tenant IDs based on exact city/town match
+    matching_tenant_ids = await get_tenant_ids_by_location(db, lat, lng, town=town, city=city)
+
+    if not matching_tenant_ids:
+        return config
+
+    # Base query: only stores from matched tenants
+    base_query = {
+        "is_active": True,
+        "is_accepting_orders": True,
+        "tenant_id": {"$in": matching_tenant_ids}
+    }
+
+    # Check Food stores
+    food_stores = await db.stores.find({**base_query, "store_type": "restaurant"}).to_list(1)
+    if food_stores:
+        config["available_modules"].append("food")
+
+    # Check Grocery stores
+    grocery_stores = await db.stores.find({**base_query, "store_type": "grocery"}).to_list(1)
+    if grocery_stores:
+        config["available_modules"].append("grocery")
+
+    # Check Laundry stores
+    laundry_stores = await db.stores.find({**base_query, "store_type": "laundry"}).to_list(1)
+    if laundry_stores:
+        config["available_modules"].append("laundry")
+
     return config
 
 
@@ -702,32 +703,48 @@ async def get_laundry_services(
 async def get_available_coupons(
     store_id: str = None,
     module: str = None,
+    city: str = None,
+    town: str = None,
+    lat: float = None,
+    lng: float = None,
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
-    Get available coupons for customer
+    Get available coupons for customer — filtered by tenant city match
     """
     await require_role(current_user, ["customer"])
     user_id = current_user["user_id"]
-    
+
+    from utils.helpers import get_tenant_ids_by_location
+
+    # Get matching tenant IDs based on exact city/town match
+    matching_tenant_ids = await get_tenant_ids_by_location(db, lat, lng, town=town, city=city)
+
+    if not matching_tenant_ids:
+        return []
+
     # Build query
     query = {
         "is_active": True,
         "valid_from": {"$lte": datetime.utcnow()},
-        "valid_until": {"$gte": datetime.utcnow()}
+        "valid_until": {"$gte": datetime.utcnow()},
+        "$or": [
+            {"tenant_id": {"$in": matching_tenant_ids}},
+            {"tenant_id": None},   # Platform-wide coupons
+            {"tenant_id": {"$exists": False}},
+        ]
     }
     
     if store_id:
-        query["$or"] = [
-            {"store_id": store_id},
-            {"store_id": None}  # Platform-wide coupons
-        ]
+        # Also allow store-specific coupons
+        query["$or"].append({"store_id": store_id})
     
     if module:
         query["$or"] = [
             {"applicable_modules": module},
-            {"applicable_modules": []}  # All modules
+            {"applicable_modules": []},  # All modules
+            {"applicable_modules": {"$exists": False}},
         ]
     
     coupons = await db.coupons.find(query, {"_id": 0}).to_list(100)
@@ -989,16 +1006,15 @@ async def browse_restaurants(
     
     stores = await db.stores.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
     
-    # Calculate distance if coordinates provided
+    # Calculate distance for display only — no radius filtering
     if lat and lng:
         for store in stores:
             if store.get("lat") and store.get("lng"):
                 distance = calculate_distance(lat, lng, store["lat"], store["lng"])
-                store["distance_km"] = distance
-                store["is_deliverable"] = distance <= store.get("delivery_radius_km", 5)
+                store["distance_km"] = round(distance, 2)
             else:
                 store["distance_km"] = None
-                store["is_deliverable"] = True
+            store["is_deliverable"] = True  # Always deliverable within same city
     
     # Get tenant info (Batch fetch to avoid N+1 query)
     tenant_ids = list(set(store["tenant_id"] for store in stores if store.get("tenant_id")))

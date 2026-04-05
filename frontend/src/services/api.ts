@@ -45,12 +45,12 @@ export const customerAPI = {
   verifyOTP: (email: string, otp: string, name?: string) => apiClient.post('/auth/verify-otp', { email, otp, role: 'customer', name }),
   
   // App
-  getConfig: (lat: number, lng: number) => 
-    apiClient.get('/customer/config', { params: { lat, lng } }),
+  getConfig: (lat: number, lng: number, city?: string) => 
+    apiClient.get('/customer/config', { params: { lat, lng, city } }),
   getStores: (lat: number, lng: number, module?: string, search?: string, city?: string) =>
     apiClient.get('/customer/stores', { params: { lat, lng, module, search, city, limit: 20 } }),
-  search: (query: string, lat: number, lng: number, module?: string) =>
-    apiClient.get('/customer/search', { params: { q: query, lat, lng, module } }),
+  search: (query: string, lat: number, lng: number, module?: string, city?: string) =>
+    apiClient.get('/customer/search', { params: { q: query, lat, lng, module, city } }),
   getRestaurant: (storeId: string) =>
     apiClient.get(`/customer/restaurants/${storeId}`),
   getProfile: () => apiClient.get('/customer/profile'),
@@ -71,7 +71,7 @@ export const customerAPI = {
   submitRating: (data: any) => apiClient.post('/customer/ratings', data),
   getStoreRatings: (storeId: string) => apiClient.get(`/customer/ratings/${storeId}`),
   // Coupons
-  getCoupons: () => apiClient.get('/customer/coupons'),
+  getCoupons: (city?: string, lat?: number, lng?: number) => apiClient.get('/customer/coupons', { params: { city, lat, lng } }),
   validateCoupon: (code: string, subtotal: number) =>
     apiClient.post('/customer/coupons/validate', { code, subtotal }),
   // Wallet

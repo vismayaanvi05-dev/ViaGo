@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { customerAPI } from '@/src/services/api';
 import { APP_CONFIG } from '@/src/config';
+import { useLocation } from '@/src/contexts/LocationContext';
 
 const P = APP_CONFIG.PRIMARY_COLOR;
 const AMOUNTS = [100, 200, 500, 1000];
@@ -148,9 +149,16 @@ export default function WalletScreen() {
 
 function CouponsList() {
   const [coupons, setCoupons] = useState<any[]>([]);
+  const { location, address } = useLocation();
   useEffect(() => {
-    customerAPI.getCoupons().then(r => setCoupons(r.data.coupons || [])).catch(() => {});
-  }, []);
+    const city = address?.city || undefined;
+    const lat = location?.latitude;
+    const lng = location?.longitude;
+    customerAPI.getCoupons(city, lat, lng).then(r => {
+      const data = r.data;
+      setCoupons(Array.isArray(data) ? data : data.coupons || []);
+    }).catch(() => {});
+  }, [location, address]);
   if (coupons.length === 0) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>

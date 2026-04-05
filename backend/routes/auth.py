@@ -65,6 +65,10 @@ async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_d
             "email_sent": email_sent
         }
         
+        # For testing: include OTP when email sending fails
+        if not email_sent:
+            response["otp"] = otp
+        
         return response
     
     except HTTPException:

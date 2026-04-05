@@ -195,11 +195,6 @@ export default function CustomerHomeScreen() {
                     </>
                   ) : null}
                 </View>
-                {store.is_deliverable === false && (
-                  <View style={styles.outOfRange}>
-                    <Text style={styles.outOfRangeText}>Outside delivery range</Text>
-                  </View>
-                )}
               </View>
               <Ionicons name="chevron-forward" size={18} color="#D1D5DB" />
             </TouchableOpacity>
