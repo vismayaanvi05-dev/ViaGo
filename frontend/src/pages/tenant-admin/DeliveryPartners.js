@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { tenantAdminAPI } from '../api/client';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { tenantAdminAPI } from '../../api/client';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import { Badge } from '../../components/ui/badge';
 import { Plus, Edit, Trash2, UserPlus, Bike, Car, Truck, Phone, Mail, MapPin, TrendingUp } from 'lucide-react';
 
 const DeliveryPartners = () => {
-  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [partners, setPartners] = useState([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  
+  const toast = (message) => {
+    alert(message.description || message.title);
+  };
   
   const [newPartner, setNewPartner] = useState({
     name: '',
