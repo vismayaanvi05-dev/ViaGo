@@ -67,6 +67,22 @@ export const customerAPI = {
   getOrders: (skip?: number, limit?: number) => apiClient.get('/customer/orders', { params: { skip, limit } }),
   getOrderDetails: (orderId: string) => apiClient.get(`/customer/orders/${orderId}`),
   getOrder: (orderId: string) => apiClient.get(`/customer/orders/${orderId}`),
+  // Ratings
+  submitRating: (data: any) => apiClient.post('/customer/ratings', data),
+  getStoreRatings: (storeId: string) => apiClient.get(`/customer/ratings/${storeId}`),
+  // Coupons
+  getCoupons: () => apiClient.get('/customer/coupons'),
+  validateCoupon: (code: string, subtotal: number) =>
+    apiClient.post('/customer/coupons/validate', { code, subtotal }),
+  // Wallet
+  getWallet: () => apiClient.get('/customer/wallet'),
+  topupWallet: (amount: number) => apiClient.post('/customer/wallet/topup', { amount }),
+  // Add-ons & Variants
+  getItemAddons: (itemId: string) => apiClient.get(`/customer/items/${itemId}/addons`),
+  // Delivery Slots (Grocery)
+  getDeliverySlots: (storeId: string) => apiClient.get(`/customer/delivery-slots?store_id=${storeId}`),
+  // Laundry Services
+  getLaundryServices: (storeId: string) => apiClient.get(`/customer/laundry-services?store_id=${storeId}`),
 };
 
 // Driver APIs (Password-based auth - credentials set by admin)

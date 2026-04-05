@@ -119,6 +119,7 @@ export default function ProfileScreen() {
       title: 'Account',
       items: [
         { icon: 'person-outline' as const, title: 'Edit Profile', onPress: () => setShowEditProfile(true) },
+        { icon: 'wallet-outline' as const, title: 'Wallet', onPress: () => router.push('/(customer)/wallet') },
         { icon: 'location-outline' as const, title: 'Saved Addresses', onPress: () => router.push('/(customer)/checkout') },
         { icon: 'receipt-outline' as const, title: 'Order History', onPress: () => router.push('/(customer)/orders') },
       ],

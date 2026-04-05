@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   ActivityIndicator,
   RefreshControl,
   SafeAreaView,
@@ -35,6 +36,11 @@ export default function OrderTrackingScreen() {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showRating, setShowRating] = useState(false);
+  const [ratingValue, setRatingValue] = useState(5);
+  const [reviewText, setReviewText] = useState('');
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [ratingDone, setRatingDone] = useState(false);
 
   const loadOrder = useCallback(async () => {
     try {
@@ -64,6 +70,23 @@ export default function OrderTrackingScreen() {
     if (!dateStr) return '';
     const d = new Date(dateStr);
     return d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const handleSubmitRating = async () => {
+    setSubmittingRating(true);
+    try {
+      await customerAPI.submitRating({
+        order_id: order.id,
+        overall_rating: ratingValue,
+        food_rating: ratingValue,
+        delivery_rating: ratingValue,
+        review: reviewText,
+      });
+      setShowRating(false);
+      setRatingDone(true);
+    } catch (e: any) {
+      console.error('Rating error:', e);
+    } finally { setSubmittingRating(false); }
   };
 
   if (loading) {
@@ -238,6 +261,50 @@ export default function OrderTrackingScreen() {
             </View>
           )}
         </View>
+
+        {/* Rate Your Order */}
+        {order.status === 'delivered' && !order.is_rated && !ratingDone && (
+          <View style={styles.ratingCard}>
+            <Text style={styles.sectionTitle}>Rate Your Experience</Text>
+            <Text style={styles.ratingSubtext}>How was your order from {order.store?.name || 'the store'}?</Text>
+            <View style={styles.starsRow}>
+              {[1, 2, 3, 4, 5].map(star => (
+                <TouchableOpacity key={star} onPress={() => setRatingValue(star)} style={styles.starBtn}>
+                  <Ionicons
+                    name={star <= ratingValue ? 'star' : 'star-outline'}
+                    size={32}
+                    color={star <= ratingValue ? '#F59E0B' : '#D1D5DB'}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={styles.reviewInput}
+              placeholder="Write a review (optional)"
+              placeholderTextColor="#94A3B8"
+              multiline
+              value={reviewText}
+              onChangeText={setReviewText}
+            />
+            <TouchableOpacity
+              style={[styles.submitRatingBtn, { backgroundColor: P }]}
+              onPress={handleSubmitRating}
+              disabled={submittingRating}
+            >
+              {submittingRating ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitRatingText}>Submit Rating</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+        {ratingDone && (
+          <View style={styles.ratingDoneCard}>
+            <Ionicons name="checkmark-circle" size={24} color="#059669" />
+            <Text style={styles.ratingDoneText}>Thank you for your feedback!</Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -310,4 +377,14 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   infoLabel: { fontSize: 13, color: '#8E8EA0' },
   infoValue: { fontSize: 13, fontWeight: '600', color: '#1A1A2E' },
+  // Rating
+  ratingCard: { backgroundColor: '#fff', borderRadius: 20, padding: 20, marginBottom: 16 },
+  ratingSubtext: { fontSize: 14, color: '#8E8EA0', marginBottom: 14 },
+  starsRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 16 },
+  starBtn: { padding: 4 },
+  reviewInput: { borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, fontSize: 14, color: '#0F172A', minHeight: 80, textAlignVertical: 'top', marginBottom: 14 },
+  submitRatingBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  submitRatingText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  ratingDoneCard: { backgroundColor: '#F0FDF4', borderRadius: 16, padding: 20, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  ratingDoneText: { fontSize: 15, fontWeight: '600', color: '#059669' },
 });

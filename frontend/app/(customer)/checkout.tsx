@@ -29,6 +29,10 @@ export default function CheckoutScreen() {
   const [placing, setPlacing] = useState(false);
   const [showAddAddress, setShowAddAddress] = useState(false);
   const [orderError, setOrderError] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponApplied, setCouponApplied] = useState('');
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
   const [newAddress, setNewAddress] = useState({ 
     address_type: 'home',
     address_line: '', 
@@ -120,7 +124,27 @@ export default function CheckoutScreen() {
 
   const deliveryFee = 30;
   const tax = subtotal * 0.05;
-  const total = subtotal + deliveryFee + tax;
+  const total = subtotal + deliveryFee + tax - couponDiscount;
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setValidatingCoupon(true);
+    try {
+      const res = await customerAPI.validateCoupon(couponCode.trim(), subtotal);
+      setCouponDiscount(res.data.discount);
+      setCouponApplied(couponCode.trim().toUpperCase());
+    } catch (e: any) {
+      setOrderError(e.response?.data?.detail || 'Invalid coupon');
+      setCouponDiscount(0);
+      setCouponApplied('');
+    } finally { setValidatingCoupon(false); }
+  };
+
+  const removeCoupon = () => {
+    setCouponCode('');
+    setCouponDiscount(0);
+    setCouponApplied('');
+  };
 
   if (loading) {
     return (
@@ -308,6 +332,50 @@ export default function CheckoutScreen() {
             />
           </View>
 
+          {/* Coupon Code */}
+          <View style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="pricetag" size={20} color={APP_CONFIG.PRIMARY_COLOR} />
+              <Text style={styles.sectionTitle}>Coupon Code</Text>
+            </View>
+            {couponApplied ? (
+              <View style={styles.couponApplied}>
+                <View style={styles.couponAppliedLeft}>
+                  <Ionicons name="checkmark-circle" size={18} color="#059669" />
+                  <View>
+                    <Text style={styles.couponAppliedCode}>{couponApplied}</Text>
+                    <Text style={styles.couponAppliedSaved}>You save {'\u20B9'}{couponDiscount}</Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={removeCoupon}>
+                  <Ionicons name="close-circle" size={22} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.couponInputRow}>
+                <TextInput
+                  style={styles.couponInput}
+                  placeholder="Enter coupon code"
+                  placeholderTextColor="#94A3B8"
+                  value={couponCode}
+                  onChangeText={setCouponCode}
+                  autoCapitalize="characters"
+                />
+                <TouchableOpacity
+                  style={styles.applyBtn}
+                  onPress={handleApplyCoupon}
+                  disabled={validatingCoupon}
+                >
+                  {validatingCoupon ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.applyBtnText}>Apply</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
           {/* Bill Summary */}
           <View style={styles.section}>
             <View style={styles.sectionTitleRow}>
@@ -325,8 +393,14 @@ export default function CheckoutScreen() {
               </View>
               <View style={styles.billRow}>
                 <Text style={styles.billLabel}>Taxes & Charges</Text>
-                <Text style={styles.billValue}>₹{tax.toFixed(2)}</Text>
+                <Text style={styles.billValue}>{'\u20B9'}{tax.toFixed(2)}</Text>
               </View>
+              {couponDiscount > 0 && (
+                <View style={styles.billRow}>
+                  <Text style={[styles.billLabel, { color: '#059669' }]}>Coupon Discount</Text>
+                  <Text style={[styles.billValue, { color: '#059669' }]}>-{'\u20B9'}{couponDiscount}</Text>
+                </View>
+              )}
               <View style={styles.billDivider} />
               <View style={styles.billRow}>
                 <Text style={styles.totalLabel}>Grand Total</Text>
@@ -517,4 +591,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   errorBannerText: { fontSize: 13, color: '#EF4444', fontWeight: '500', flex: 1 },
+  // Coupon
+  couponInputRow: { flexDirection: 'row', gap: 8 },
+  couponInput: { flex: 1, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontWeight: '600', color: '#0F172A', backgroundColor: '#F8FAFC', letterSpacing: 1 },
+  applyBtn: { backgroundColor: APP_CONFIG.PRIMARY_COLOR, paddingHorizontal: 20, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  applyBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  couponApplied: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 12, padding: 14 },
+  couponAppliedLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  couponAppliedCode: { fontSize: 15, fontWeight: '800', color: '#059669', letterSpacing: 0.5 },
+  couponAppliedSaved: { fontSize: 12, color: '#059669' },
 });
