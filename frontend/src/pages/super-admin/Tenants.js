@@ -294,7 +294,7 @@ const Tenants = () => {
               Add Tenant
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingTenant ? 'Edit Tenant' : 'Create New Tenant'}</DialogTitle>
             </DialogHeader>
@@ -522,7 +522,7 @@ const Tenants = () => {
 
       {/* Subscription Assignment Dialog */}
       <Dialog open={subscriptionDialogOpen} onOpenChange={setSubscriptionDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Assign Subscription to {selectedTenant?.name}</DialogTitle>
           </DialogHeader>
