@@ -9,8 +9,8 @@ class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     tenant_id: Optional[str] = None  # None for super_admin
     name: str
-    phone: str
-    email: Optional[EmailStr] = None
+    phone: Optional[str] = None  # Optional for Email-Only auth
+    email: EmailStr  # Required for Email-Only auth
     role: str  # 'super_admin', 'tenant_admin', 'vendor', 'delivery', 'customer', 'staff'
     profile_photo: Optional[str] = None
     status: str = "active"  # 'active' or 'inactive'
@@ -21,8 +21,8 @@ class User(BaseModel):
 class UserCreate(BaseModel):
     tenant_id: Optional[str] = None
     name: str
-    phone: str
-    email: Optional[EmailStr] = None
+    phone: Optional[str] = None  # Optional for Email-Only auth
+    email: EmailStr  # Required for Email-Only auth
     role: str
 
 class UserUpdate(BaseModel):

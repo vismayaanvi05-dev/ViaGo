@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HyperServe Mobile Apps - Test Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -289,7 +288,7 @@
             
             <div class="test-section">
                 <h4>🧪 Test Email OTP</h4>
-                <input type="email" id="customerEmail" placeholder="Enter test email" value="test@example.com">
+                <input type="email" id="customerEmail" placeholder="Enter test email" value="flashfood813@gmail.com">
                 <button class="test-button" onclick="testCustomerOTP()">Send Test OTP</button>
                 <div id="customerResult" class="result-box"></div>
             </div>
@@ -325,7 +324,7 @@
             
             <div class="test-section">
                 <h4>🧪 Test Email OTP</h4>
-                <input type="email" id="deliveryEmail" placeholder="Enter test email" value="driver@example.com">
+                <input type="email" id="deliveryEmail" placeholder="Enter test email" value="flashfood813@gmail.com">
                 <button class="test-button" onclick="testDeliveryOTP()">Send Test OTP</button>
                 <div id="deliveryResult" class="result-box"></div>
             </div>
@@ -338,16 +337,42 @@
     </div>
     
     <script>
-        // Generate QR codes
-        QRCode.toCanvas(document.getElementById('customerQR'), 'exp://127.0.0.1:8081', {
-            width: 280,
-            margin: 2
-        });
+        // Fetch and display QR codes from server
+        async function loadQRCodes() {
+            try {
+                const response = await fetch('/api/qr-codes');
+                const data = await response.json();
+                
+                // Update Customer App QR
+                const customerImg = document.createElement('img');
+                customerImg.src = data.customer.qr;
+                customerImg.style.width = '280px';
+                customerImg.style.height = '280px';
+                const customerCanvas = document.getElementById('customerQR');
+                customerCanvas.parentNode.replaceChild(customerImg, customerCanvas);
+                customerImg.id = 'customerQR';
+                
+                // Update Delivery App QR
+                const deliveryImg = document.createElement('img');
+                deliveryImg.src = data.delivery.qr;
+                deliveryImg.style.width = '280px';
+                deliveryImg.style.height = '280px';
+                const deliveryCanvas = document.getElementById('deliveryQR');
+                deliveryCanvas.parentNode.replaceChild(deliveryImg, deliveryCanvas);
+                deliveryImg.id = 'deliveryQR';
+                
+                // Update URL displays
+                document.querySelectorAll('.url-box')[0].textContent = data.customer.url;
+                document.querySelectorAll('.url-box')[1].textContent = data.delivery.url;
+                
+                console.log('✅ QR Codes loaded successfully', data);
+            } catch (error) {
+                console.error('❌ Failed to load QR codes:', error);
+            }
+        }
         
-        QRCode.toCanvas(document.getElementById('deliveryQR'), 'exp://127.0.0.1:8082', {
-            width: 280,
-            margin: 2
-        });
+        // Load QR codes on page load
+        window.addEventListener('DOMContentLoaded', loadQRCodes);
         
         // Test OTP functions
         async function testCustomerOTP() {
