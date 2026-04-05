@@ -138,6 +138,13 @@ export const tenantAdminAPI = {
   updateVendorAdmin: (id, data) => apiClient.put(`/tenant-admin/vendor-admins/${id}`, data),
   deleteVendorAdmin: (id) => apiClient.delete(`/tenant-admin/vendor-admins/${id}`),
 
+  // Delivery Partners Management
+  getDeliveryPartners: () => apiClient.get('/tenant-admin/delivery-partners'),
+  getDeliveryPartner: (id) => apiClient.get(`/tenant-admin/delivery-partners/${id}`),
+  createDeliveryPartner: (data) => apiClient.post('/tenant-admin/delivery-partners', data),
+  updateDeliveryPartner: (id, data) => apiClient.put(`/tenant-admin/delivery-partners/${id}`, data),
+  deleteDeliveryPartner: (id) => apiClient.delete(`/tenant-admin/delivery-partners/${id}`),
+
   // Reports
   getSalesReport: (params) => apiClient.get('/tenant-admin/reports/sales', { params }),
   getWalletReport: () => apiClient.get('/tenant-admin/reports/wallet'),

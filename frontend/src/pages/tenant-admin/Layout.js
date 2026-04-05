@@ -19,7 +19,8 @@ import {
   DollarSign,
   Clock,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Bike
 } from 'lucide-react';
 
 const TenantAdminLayout = () => {
@@ -57,6 +58,7 @@ const TenantAdminLayout = () => {
   const globalItems = [
     { path: '/tenant-admin', icon: Home, label: 'Dashboard' },
     { path: '/tenant-admin/orders', icon: ShoppingBag, label: 'All Orders' },
+    { path: '/tenant-admin/delivery-partners', icon: Bike, label: 'Delivery Partners' },
     { path: '/tenant-admin/settings', icon: Settings, label: 'Settings' },
   ];
 

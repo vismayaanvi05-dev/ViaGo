@@ -23,6 +23,7 @@ import MenuBuilder from './pages/tenant-admin/MenuBuilder';
 import CreateVendorAdmin from './pages/tenant-admin/CreateVendorAdmin';
 import TenantReports from './pages/tenant-admin/Reports';
 import TenantCategories from './pages/tenant-admin/Categories';
+import DeliveryPartners from './pages/tenant-admin/DeliveryPartners';
 
 // Vendor Admin
 import VendorAdminLayout from './pages/vendor-admin/Layout';
@@ -124,6 +125,7 @@ function App() {
             <Route path="categories" element={<TenantCategories />} />
             <Route path="orders" element={<UnifiedOrders />} />
             <Route path="vendors" element={<CreateVendorAdmin />} />
+            <Route path="delivery-partners" element={<DeliveryPartners />} />
             <Route path="reports" element={<TenantReports />} />
             
             {/* Grocery Module Routes */}
