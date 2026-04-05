@@ -64,6 +64,12 @@ export default function CustomerLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="order/[id]"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

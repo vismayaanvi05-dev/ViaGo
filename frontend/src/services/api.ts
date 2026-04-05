@@ -66,6 +66,7 @@ export const customerAPI = {
   placeOrder: (data: any) => apiClient.post('/customer/orders', data),
   getOrders: (skip?: number, limit?: number) => apiClient.get('/customer/orders', { params: { skip, limit } }),
   getOrderDetails: (orderId: string) => apiClient.get(`/customer/orders/${orderId}`),
+  getOrder: (orderId: string) => apiClient.get(`/customer/orders/${orderId}`),
 };
 
 // Driver APIs (Password-based auth - credentials set by admin)
