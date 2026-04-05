@@ -250,22 +250,41 @@ async def search_stores_and_items(
     lat: float,
     lng: float,
     module: str = None,
+    city: str = None,
+    town: str = None,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
-    Search across stores and items
+    Search across stores and items — filtered by tenant location (exact city match)
     """
+    from utils.helpers import get_tenant_ids_by_location
+    
+    # Get matching tenant IDs based on exact city/town match
+    matching_tenant_ids = await get_tenant_ids_by_location(db, lat, lng, town=town, city=city)
+    
     results = {
         "stores": [],
         "items": []
     }
     
-    # Search stores
+    if not matching_tenant_ids:
+        return results
+    
+    # Search stores — filtered by tenant and city
     store_query = {
         "is_active": True,
         "is_accepting_orders": True,
-        "name": {"$regex": q, "$options": "i"}
+        "name": {"$regex": q, "$options": "i"},
+        "tenant_id": {"$in": matching_tenant_ids}
     }
+    
+    # Also filter by store city if provided
+    match_city = city or town
+    if match_city:
+        store_query["$or"] = [
+            {"city": {"$regex": f"^{match_city}$", "$options": "i"}},
+            {"town": {"$regex": f"^{match_city}$", "$options": "i"}},
+        ]
     
     if module:
         store_type_map = {"food": "restaurant", "grocery": "grocery", "laundry": "laundry"}
@@ -273,30 +292,38 @@ async def search_stores_and_items(
     
     stores = await db.stores.find(store_query, {"_id": 0}).limit(10).to_list(10)
     
-    # Calculate distances
+    # Calculate distances for display
     for store in stores:
         if store.get("lat") and store.get("lng"):
             distance = calculate_distance(lat, lng, store["lat"], store["lng"])
             store["distance_km"] = round(distance, 2)
-            store["is_deliverable"] = distance <= store.get("delivery_radius_km", 5)
+        store["is_deliverable"] = True
         results["stores"].append(store)
     
-    # Search items
+    # Search items — only from matched tenant stores
+    matched_store_ids_list = [s["id"] for s in stores]
+    
+    # Also get all store IDs belonging to matched tenants for item search
+    tenant_stores = await db.stores.find(
+        {"tenant_id": {"$in": matching_tenant_ids}, "is_active": True},
+        {"_id": 0, "id": 1}
+    ).to_list(500)
+    all_tenant_store_ids = [s["id"] for s in tenant_stores]
+    
     items = await db.items.find({
         "name": {"$regex": q, "$options": "i"},
         "is_available": True,
-        "is_deleted": False
+        "store_id": {"$in": all_tenant_store_ids}
     }, {"_id": 0}).limit(20).to_list(20)
     
-    # Optimized: Batch fetch store info to avoid N+1
-    store_ids = [item.get("store_id") for item in items if item.get("store_id")]
-    stores = await db.stores.find(
-        {"id": {"$in": store_ids}},
+    # Batch fetch store info
+    item_store_ids = list(set([item.get("store_id") for item in items if item.get("store_id")]))
+    item_stores = await db.stores.find(
+        {"id": {"$in": item_store_ids}},
         {"_id": 0, "id": 1, "name": 1, "store_type": 1}
-    ).to_list(len(store_ids))
-    store_map = {s["id"]: s for s in stores}
+    ).to_list(len(item_store_ids)) if item_store_ids else []
+    store_map = {s["id"]: s for s in item_stores}
     
-    # Enrich items with store info
     for item in items:
         store_id = item.get("store_id")
         if store_id and store_id in store_map:
@@ -919,6 +946,7 @@ async def browse_restaurants(
     lat: float = None,
     lng: float = None,
     town: str = None,
+    city: str = None,
     cuisine_type: str = None,
     search: str = None,
     skip: int = 0,
@@ -926,26 +954,32 @@ async def browse_restaurants(
 ):
     """
     Browse available restaurants (food module)
-    Location-based: Only show restaurants from tenants in customer's location
+    Strict location-based: Only show restaurants from tenants matching customer's city/town
     """
     await require_role(current_user, ["customer"])
     
     from utils.helpers import get_tenant_ids_by_location
     
-    # Get matching tenant IDs based on customer location
-    matching_tenant_ids = []
-    if lat and lng:
-        matching_tenant_ids = await get_tenant_ids_by_location(db, lat, lng, town)
+    # Get matching tenant IDs based on exact city/town match
+    matching_tenant_ids = await get_tenant_ids_by_location(db, lat, lng, town=town, city=city)
+    
+    if not matching_tenant_ids:
+        return []
     
     query = {
-        "type": "restaurant",
+        "store_type": "restaurant",
         "is_active": True,
-        "is_accepting_orders": True
+        "is_accepting_orders": True,
+        "tenant_id": {"$in": matching_tenant_ids}
     }
     
-    # Filter by tenant location if available
-    if matching_tenant_ids:
-        query["tenant_id"] = {"$in": matching_tenant_ids}
+    # Also filter by store city for strict matching
+    match_city = city or town
+    if match_city:
+        query["$or"] = [
+            {"city": {"$regex": f"^{match_city}$", "$options": "i"}},
+            {"town": {"$regex": f"^{match_city}$", "$options": "i"}},
+        ]
     
     if cuisine_type:
         query["cuisine_types"] = cuisine_type
