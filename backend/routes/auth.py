@@ -9,6 +9,9 @@ from datetime import datetime, timedelta, timezone
 import os
 import random
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -35,9 +38,8 @@ async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_d
         
         # Generate OTP for email
         otp = generate_otp(6)
-        result = await send_otp_email(request.email, otp, "User")
         
-        # Store OTP for verification
+        # Store OTP FIRST (before sending email)
         otp_storage[request.email] = {
             "otp": otp,
             "role": request.role,
@@ -45,11 +47,22 @@ async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_d
             "attempts": 0
         }
         
+        # Try sending email (non-blocking for test mode)
+        email_sent = False
+        try:
+            result = await send_otp_email(request.email, otp, "User")
+            email_sent = True
+            message = result.get("message", "OTP sent successfully")
+        except Exception as email_error:
+            logger.warning(f"Email send failed (OTP still valid): {email_error}")
+            message = "OTP generated (email delivery failed - use displayed code)"
+        
         response = {
             "success": True,
-            "message": result["message"],
+            "message": message,
             "delivery_method": "email",
-            "email": request.email
+            "email": request.email,
+            "email_sent": email_sent
         }
         
         # Include OTP in response for testing (in production, remove this)
@@ -110,9 +123,6 @@ async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_
             detail="Invalid OTP"
         )
     
-    # Clean up storage
-    del otp_storage[request.email]
-    
     # Check if user exists
     user_doc = await db.users.find_one(
         {"email": request.email, "role": request.role},
@@ -124,6 +134,7 @@ async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_
     if not user_doc:
         # New user - create account
         if not request.name:
+            # DON'T delete OTP yet - user needs to retry with name
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Name required for new user registration"
@@ -164,6 +175,9 @@ async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_
     }
     
     access_token = create_access_token(token_data)
+    
+    # Clean up OTP storage after successful auth
+    otp_storage.pop(request.email, None)
     
     # Convert datetime fields for response
     if isinstance(user_doc.get("created_at"), str):

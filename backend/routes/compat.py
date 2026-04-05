@@ -29,10 +29,10 @@ async def driver_login(request: dict, db: AsyncIOMotorDatabase = Depends(get_db)
     if not email or not password:
         raise HTTPException(status_code=400, detail="Email and password are required")
 
-    user_doc = await db.users.find_one({"email": email, "role": "delivery"}, {"_id": 0})
+    user_doc = await db.users.find_one({"email": email, "role": "delivery_partner"}, {"_id": 0})
     if not user_doc:
-        # Also check delivery_partner role
-        user_doc = await db.users.find_one({"email": email, "role": "delivery_partner"}, {"_id": 0})
+        # Also check delivery role
+        user_doc = await db.users.find_one({"email": email, "role": "delivery"}, {"_id": 0})
 
     if not user_doc:
         raise HTTPException(status_code=401, detail="Invalid credentials")
