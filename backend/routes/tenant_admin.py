@@ -766,6 +766,7 @@ async def delete_vendor_admin(
 class DeliveryPartnerCreate(BaseModel):
     name: str
     email: str
+    password: str  # Password for delivery partner login
     phone: Optional[str] = None
     vehicle_type: str = "bike"  # bike, car, truck
     vehicle_number: Optional[str] = None
@@ -791,6 +792,7 @@ async def create_delivery_partner(
     # Create delivery partner user
     from models.user import User
     from uuid import uuid4
+    from utils.helpers import get_password_hash
     
     new_partner = User(
         id=str(uuid4()),
@@ -803,6 +805,7 @@ async def create_delivery_partner(
     )
     
     partner_dict = new_partner.model_dump()
+    partner_dict["password"] = get_password_hash(partner_data.password)  # Hash password
     partner_dict["vehicle_type"] = partner_data.vehicle_type
     partner_dict["vehicle_number"] = partner_data.vehicle_number
     partner_dict["created_at"] = partner_dict["created_at"].isoformat()
@@ -813,7 +816,7 @@ async def create_delivery_partner(
     
     await db.users.insert_one(partner_dict)
     
-    # TODO: Send email with login credentials (OTP-based)
+    # Delivery partner can now login with email + password
     
     return {
         "success": True,

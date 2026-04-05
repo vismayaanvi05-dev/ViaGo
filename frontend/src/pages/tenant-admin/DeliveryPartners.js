@@ -42,6 +42,7 @@ const DeliveryPartners = () => {
   const [newPartner, setNewPartner] = useState({
     name: '',
     email: '',
+    password: '',
     phone: '',
     vehicle_type: 'bike',
     vehicle_number: '',
@@ -67,10 +68,10 @@ const DeliveryPartners = () => {
   };
 
   const handleCreatePartner = async () => {
-    if (!newPartner.name || !newPartner.email) {
+    if (!newPartner.name || !newPartner.email || !newPartner.password) {
       toast({
         title: "Validation Error",
-        description: "Name and email are required",
+        description: "Name, email, and password are required",
         variant: "destructive",
       });
       return;
@@ -87,6 +88,7 @@ const DeliveryPartners = () => {
       setNewPartner({
         name: '',
         email: '',
+        password: '',
         phone: '',
         vehicle_type: 'bike',
         vehicle_number: '',
@@ -95,7 +97,7 @@ const DeliveryPartners = () => {
       // Show success toast
       toast({
         title: "Success",
-        description: "Delivery partner created successfully. Login credentials sent via email.",
+        description: "Delivery partner created successfully. They can now login with their email and password.",
       });
       
       // Refresh list in background
@@ -177,7 +179,17 @@ const DeliveryPartners = () => {
                   onChange={(e) => setNewPartner({...newPartner, email: e.target.value})}
                   placeholder="john@example.com"
                 />
-                <p className="text-sm text-gray-500">Login credentials will be sent here</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password *</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={newPartner.password}
+                  onChange={(e) => setNewPartner({...newPartner, password: e.target.value})}
+                  placeholder="Enter password for login"
+                />
+                <p className="text-sm text-gray-500">Delivery partner will use this password to login</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
