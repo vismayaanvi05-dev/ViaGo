@@ -54,13 +54,23 @@ export default function CustomerLoginScreen() {
       setLoading(false);
 
       if (result.success) {
-        setDisplayOTP(result.otp || '');
+        // If OTP is returned (testing mode), show it
+        if (result.otp) {
+          setDisplayOTP(result.otp);
+          Alert.alert(
+            'OTP Sent! ✉️', 
+            `Your verification code is: ${result.otp}\n\n(Testing mode - In production, check your email)`,
+            [{ text: 'OK' }]
+          );
+        } else {
+          // Email was sent successfully
+          Alert.alert(
+            'OTP Sent! ✉️', 
+            `A verification code has been sent to ${email}.\n\nPlease check your inbox (and spam folder).`,
+            [{ text: 'OK' }]
+          );
+        }
         setStep('otp');
-        Alert.alert(
-          'OTP Sent! ✉️', 
-          `Your verification code is: ${result.otp}\n\n(For testing - In production, check your email)`,
-          [{ text: 'OK' }]
-        );
       } else {
         Alert.alert('Error', result.error || 'Failed to send OTP');
       }

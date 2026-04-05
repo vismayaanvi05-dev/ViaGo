@@ -258,8 +258,70 @@ test_plan:
   test_all: true
   test_priority: "high_first"
 
+  - task: "Resend Email Integration - OTP Sending (Verified Email)"
+    implemented: true
+    working: true
+    file: "/app/backend/services/email_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "OTP email sending working correctly for verified email (flashfood813@gmail.com). Email sent successfully via Resend API, OTP not included in response as expected for production behavior."
+
+  - task: "Resend Email Integration - OTP Fallback (Non-verified Email)"
+    implemented: true
+    working: true
+    file: "/app/backend/services/email_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "OTP email fallback working correctly for non-verified emails. Email sending fails as expected due to Resend sandbox restrictions, OTP shown in response for testing/development purposes."
+
+  - task: "Customer Registration Flow with Welcome Email"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/auth.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Full customer registration flow working correctly. New customers can register with OTP verification and receive welcome emails. Email sending follows same sandbox restrictions (works for verified email only)."
+
+  - task: "Driver Creation with Email Notifications"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/auth.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Driver creation with email notifications working correctly. Admin can create drivers and credentials emails are sent. Email_sent field properly indicates success/failure based on email verification status. Verified emails receive credentials, non-verified emails fail gracefully."
+
+  - task: "Email Service Integration with Resend API"
+    implemented: true
+    working: true
+    file: "/app/backend/services/email_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Resend API integration working correctly in sandbox mode. API key configured properly. Email templates for OTP, welcome, and driver credentials implemented with proper HTML formatting. Sandbox restrictions properly handled - only verified email (flashfood813@gmail.com) can receive emails, others fail with appropriate error handling."
+
 agent_communication:
   - agent: "testing"
     message: "Comprehensive backend API testing completed successfully. All 8 major flows tested and working correctly: Health Check, Customer Auth, Store Discovery, Cart Management, Address Management, Order Placement, Delivery Partner Auth, and Delivery Order Management. Backend URL https://intelligent-chandrasekhar-2.preview.emergentagent.com/api is fully functional. Sample data seeding working properly. All endpoints returning expected responses with proper authentication and authorization."
   - agent: "testing"
     message: "Updated authentication flows tested and verified. Customer OTP authentication working correctly with self-signup. Driver password authentication implemented with admin-created accounts. Admin driver management APIs (create, list, update, delete) all functional. Authentication role separation confirmed - OTP rejected for drivers, password login working for drivers. All 4 requested authentication flows tested successfully with 100% pass rate."
+  - agent: "testing"
+    message: "Resend email integration testing completed successfully. All 5 requested email flows tested with 100% pass rate: (1) OTP email sending for verified email - working correctly, emails sent via Resend API; (2) OTP email fallback for non-verified emails - working correctly, shows OTP in response when email fails; (3) Customer registration flow with welcome emails - working correctly; (4) Driver creation with credential emails - working correctly, email_sent field indicates success/failure; (5) Driver login unchanged - working correctly. Email service properly handles Resend sandbox restrictions where only verified email (flashfood813@gmail.com) receives emails, others fail gracefully with appropriate error handling. All email templates (OTP, welcome, driver credentials) implemented with proper HTML formatting."

@@ -1,470 +1,405 @@
 #!/usr/bin/env python3
 """
-ViaGo Backend API Testing Script
-Tests all customer and delivery partner flows
+ViaGo Backend API Test Suite with Resend Email Integration
+Testing email flows for OTP authentication and driver management
 """
 
 import requests
 import json
 import time
+import uuid
 from datetime import datetime
 
-# Configuration
-BASE_URL = "https://intelligent-chandrasekhar-2.preview.emergentagent.com/api"
-CUSTOMER_EMAIL = "customer@test.com"
-DELIVERY_EMAIL = "delivery@test.com"
+# Backend URL from environment
+BACKEND_URL = "https://intelligent-chandrasekhar-2.preview.emergentagent.com/api"
 
-# Global variables to store tokens and IDs
-customer_token = None
-delivery_token = None
-store_id = None
-item_id = None
-address_id = None
-order_id = None
+# Test emails
+VERIFIED_EMAIL = "flashfood813@gmail.com"  # Verified Resend email
+TEST_EMAIL = "test@example.com"  # Non-verified email for fallback testing
 
-def print_test_result(test_name, success, details=""):
-    """Print formatted test results"""
-    status = "✅ PASS" if success else "❌ FAIL"
-    print(f"{status} {test_name}")
-    if details:
-        print(f"    {details}")
-    print()
-
-def make_request(method, endpoint, data=None, headers=None, params=None):
-    """Make HTTP request with error handling"""
-    url = f"{BASE_URL}{endpoint}"
-    try:
-        if method.upper() == "GET":
-            response = requests.get(url, headers=headers, params=params, timeout=30)
-        elif method.upper() == "POST":
-            response = requests.post(url, json=data, headers=headers, params=params, timeout=30)
-        elif method.upper() == "PUT":
-            response = requests.put(url, json=data, headers=headers, params=params, timeout=30)
-        elif method.upper() == "DELETE":
-            response = requests.delete(url, headers=headers, params=params, timeout=30)
+class ViaGoEmailTester:
+    def __init__(self):
+        self.session = requests.Session()
+        self.test_results = []
         
-        return response
-    except requests.exceptions.RequestException as e:
-        print(f"Request failed: {e}")
-        return None
-
-def test_health_check():
-    """Test 1: Health Check"""
-    print("🔍 Testing Health Check...")
-    
-    response = make_request("GET", "/health")
-    if response and response.status_code == 200:
-        data = response.json()
-        if data.get("status") == "healthy":
-            print_test_result("Health Check", True, f"Status: {data.get('status')}, Database: {data.get('database')}")
-            return True
-        else:
-            print_test_result("Health Check", False, f"Unexpected response: {data}")
-            return False
-    else:
-        print_test_result("Health Check", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-
-def test_customer_auth():
-    """Test 2: Customer Authentication Flow"""
-    global customer_token
-    print("🔍 Testing Customer Authentication...")
-    
-    # Step 1: Send OTP
-    otp_data = {
-        "email": CUSTOMER_EMAIL,
-        "role": "customer"
-    }
-    
-    response = make_request("POST", "/auth/send-otp", otp_data)
-    if not response or response.status_code != 200:
-        print_test_result("Customer Send OTP", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    otp_response = response.json()
-    if not otp_response.get("success"):
-        print_test_result("Customer Send OTP", False, f"OTP send failed: {otp_response}")
-        return False
-    
-    otp = otp_response.get("otp")
-    print_test_result("Customer Send OTP", True, f"OTP received: {otp}")
-    
-    # Step 2: Verify OTP
-    verify_data = {
-        "email": CUSTOMER_EMAIL,
-        "otp": otp,
-        "role": "customer",
-        "name": "Test Customer"
-    }
-    
-    response = make_request("POST", "/auth/verify-otp", verify_data)
-    if not response or response.status_code != 200:
-        print_test_result("Customer Verify OTP", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    verify_response = response.json()
-    customer_token = verify_response.get("access_token")
-    if customer_token:
-        print_test_result("Customer Verify OTP", True, f"Token received: {customer_token[:20]}...")
-        return True
-    else:
-        print_test_result("Customer Verify OTP", False, f"No token in response: {verify_response}")
-        return False
-
-def test_store_discovery():
-    """Test 3: Customer Store Discovery"""
-    global store_id, item_id
-    print("🔍 Testing Store Discovery...")
-    
-    # Test store discovery
-    params = {
-        "lat": 19.076,
-        "lng": 72.8777,
-        "module": "food"
-    }
-    
-    response = make_request("GET", "/customer/stores", params=params)
-    if not response or response.status_code != 200:
-        print_test_result("Store Discovery", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    stores_data = response.json()
-    stores = stores_data.get("stores", [])
-    
-    if not stores:
-        print_test_result("Store Discovery", False, "No stores found")
-        return False
-    
-    store_id = stores[0]["id"]
-    print_test_result("Store Discovery", True, f"Found {len(stores)} stores, using store: {stores[0]['name']}")
-    
-    # Test restaurant details
-    if not customer_token:
-        print_test_result("Restaurant Details", False, "No customer token available")
-        return False
-    
-    headers = {"Authorization": f"Bearer {customer_token}"}
-    response = make_request("GET", f"/customer/restaurants/{store_id}", headers=headers)
-    
-    if not response or response.status_code != 200:
-        print_test_result("Restaurant Details", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    restaurant_data = response.json()
-    categories = restaurant_data.get("categories", [])
-    
-    if categories and categories[0].get("items"):
-        item_id = categories[0]["items"][0]["id"]
-        print_test_result("Restaurant Details", True, f"Restaurant: {restaurant_data['name']}, Categories: {len(categories)}")
-        return True
-    else:
-        print_test_result("Restaurant Details", False, "No menu items found")
-        return False
-
-def test_cart_flow():
-    """Test 4: Customer Cart Flow"""
-    print("🔍 Testing Cart Flow...")
-    
-    if not customer_token or not store_id or not item_id:
-        print_test_result("Cart Flow", False, "Missing prerequisites (token, store_id, or item_id)")
-        return False
-    
-    headers = {"Authorization": f"Bearer {customer_token}"}
-    
-    # Add item to cart
-    cart_data = {
-        "store_id": store_id,
-        "item_id": item_id,
-        "quantity": 2
-    }
-    
-    response = make_request("POST", "/customer/cart/add", cart_data, headers)
-    if not response or response.status_code != 200:
-        print_test_result("Add to Cart", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    add_response = response.json()
-    if not add_response.get("success"):
-        print_test_result("Add to Cart", False, f"Add to cart failed: {add_response}")
-        return False
-    
-    print_test_result("Add to Cart", True, "Item added successfully")
-    
-    # Get cart
-    response = make_request("GET", "/customer/cart", headers=headers)
-    if not response or response.status_code != 200:
-        print_test_result("Get Cart", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    cart_response = response.json()
-    cart = cart_response.get("cart")
-    if cart and cart.get("items"):
-        print_test_result("Get Cart", True, f"Cart has {len(cart['items'])} items, Subtotal: ₹{cart_response.get('subtotal', 0)}")
-        return True
-    else:
-        print_test_result("Get Cart", False, "Cart is empty or invalid")
-        return False
-
-def test_customer_address():
-    """Test 5: Customer Address Management"""
-    global address_id
-    print("🔍 Testing Customer Address...")
-    
-    if not customer_token:
-        print_test_result("Customer Address", False, "No customer token available")
-        return False
-    
-    headers = {"Authorization": f"Bearer {customer_token}"}
-    
-    # Create address
-    address_data = {
-        "address_line": "123 Test Street, Andheri West",
-        "city": "Mumbai",
-        "pincode": "400001",
-        "state": "Maharashtra",
-        "is_default": True,
-        "lat": 19.0760,
-        "lng": 72.8777
-    }
-    
-    response = make_request("POST", "/customer/addresses", address_data, headers)
-    if not response or response.status_code != 200:
-        print_test_result("Create Address", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    address_response = response.json()
-    address_id = address_response.get("id")
-    if address_id:
-        print_test_result("Create Address", True, f"Address created: {address_response.get('address_line')}")
-    else:
-        print_test_result("Create Address", False, f"No address ID in response: {address_response}")
-        return False
-    
-    # Get addresses
-    response = make_request("GET", "/customer/addresses", headers=headers)
-    if not response or response.status_code != 200:
-        print_test_result("Get Addresses", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    addresses = response.json()
-    if isinstance(addresses, list) and len(addresses) > 0:
-        print_test_result("Get Addresses", True, f"Found {len(addresses)} addresses")
-        return True
-    else:
-        print_test_result("Get Addresses", False, "No addresses found")
-        return False
-
-def test_order_placement():
-    """Test 6: Order Placement"""
-    global order_id
-    print("🔍 Testing Order Placement...")
-    
-    if not customer_token or not store_id or not item_id or not address_id:
-        print_test_result("Order Placement", False, "Missing prerequisites")
-        return False
-    
-    headers = {"Authorization": f"Bearer {customer_token}"}
-    
-    # Place order
-    order_data = {
-        "store_id": store_id,
-        "delivery_address_id": address_id,
-        "payment_method": "cash_on_delivery",
-        "special_instructions": "Please ring the bell twice",
-        "items": [
-            {
-                "item_id": item_id,
-                "quantity": 2
-            }
-        ]
-    }
-    
-    response = make_request("POST", "/customer/orders", order_data, headers)
-    if not response or response.status_code != 200:
-        print_test_result("Place Order", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    order_response = response.json()
-    if order_response.get("success"):
-        order_id = order_response.get("order_id")
-        print_test_result("Place Order", True, f"Order placed: {order_response.get('order_number')}, Total: ₹{order_response.get('total_amount')}")
-    else:
-        print_test_result("Place Order", False, f"Order placement failed: {order_response}")
-        return False
-    
-    # Get orders
-    response = make_request("GET", "/customer/orders", headers=headers)
-    if not response or response.status_code != 200:
-        print_test_result("Get Orders", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    orders_response = response.json()
-    orders = orders_response.get("orders", [])
-    if orders:
-        print_test_result("Get Orders", True, f"Found {len(orders)} orders")
-        return True
-    else:
-        print_test_result("Get Orders", False, "No orders found")
-        return False
-
-def test_delivery_partner_auth():
-    """Test 7: Delivery Partner Authentication"""
-    global delivery_token
-    print("🔍 Testing Delivery Partner Authentication...")
-    
-    # Send OTP
-    otp_data = {
-        "email": DELIVERY_EMAIL,
-        "role": "delivery_partner"
-    }
-    
-    response = make_request("POST", "/auth/send-otp", otp_data)
-    if not response or response.status_code != 200:
-        print_test_result("Delivery Send OTP", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    otp_response = response.json()
-    otp = otp_response.get("otp")
-    if not otp:
-        print_test_result("Delivery Send OTP", False, f"No OTP received: {otp_response}")
-        return False
-    
-    print_test_result("Delivery Send OTP", True, f"OTP received: {otp}")
-    
-    # Verify OTP
-    verify_data = {
-        "email": DELIVERY_EMAIL,
-        "otp": otp,
-        "role": "delivery_partner",
-        "name": "Test Delivery Partner"
-    }
-    
-    response = make_request("POST", "/auth/verify-otp", verify_data)
-    if not response or response.status_code != 200:
-        print_test_result("Delivery Verify OTP", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    verify_response = response.json()
-    delivery_token = verify_response.get("access_token")
-    if delivery_token:
-        print_test_result("Delivery Verify OTP", True, f"Token received: {delivery_token[:20]}...")
-        return True
-    else:
-        print_test_result("Delivery Verify OTP", False, f"No token in response: {verify_response}")
-        return False
-
-def test_delivery_flow():
-    """Test 8: Delivery Partner Flow"""
-    print("🔍 Testing Delivery Partner Flow...")
-    
-    if not delivery_token:
-        print_test_result("Delivery Flow", False, "No delivery token available")
-        return False
-    
-    headers = {"Authorization": f"Bearer {delivery_token}"}
-    
-    # Get available deliveries
-    params = {
-        "lat": 19.076,
-        "lng": 72.8777
-    }
-    
-    response = make_request("GET", "/delivery/available", headers=headers, params=params)
-    if not response or response.status_code != 200:
-        print_test_result("Get Available Deliveries", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-    
-    available_response = response.json()
-    deliveries = available_response.get("deliveries", [])
-    print_test_result("Get Available Deliveries", True, f"Found {len(deliveries)} available deliveries")
-    
-    # If we have an order and deliveries available, test accepting it
-    if order_id and deliveries:
-        # Find our order in available deliveries
-        target_order = None
-        for delivery in deliveries:
-            if delivery.get("id") == order_id:
-                target_order = delivery
-                break
-        
-        if target_order:
-            # Accept delivery
-            response = make_request("POST", f"/delivery/accept/{order_id}", headers=headers)
-            if response and response.status_code == 200:
-                accept_response = response.json()
-                if accept_response.get("success"):
-                    print_test_result("Accept Delivery", True, f"Delivery accepted for order: {order_id}")
-                    
-                    # Update delivery status
-                    status_data = {"status": "picked_up"}
-                    response = make_request("PUT", f"/delivery/status/{order_id}", status_data, headers)
-                    if response and response.status_code == 200:
-                        status_response = response.json()
-                        if status_response.get("success"):
-                            print_test_result("Update Delivery Status", True, "Status updated to picked_up")
-                        else:
-                            print_test_result("Update Delivery Status", False, f"Status update failed: {status_response}")
-                    else:
-                        print_test_result("Update Delivery Status", False, f"HTTP {response.status_code if response else 'No response'}")
-                else:
-                    print_test_result("Accept Delivery", False, f"Accept failed: {accept_response}")
-            else:
-                print_test_result("Accept Delivery", False, f"HTTP {response.status_code if response else 'No response'}")
-        else:
-            print_test_result("Accept Delivery", False, "Order not found in available deliveries")
-    
-    # Get earnings
-    response = make_request("GET", "/delivery/earnings", headers=headers)
-    if response and response.status_code == 200:
-        earnings_response = response.json()
-        print_test_result("Get Earnings", True, f"Total earnings: ₹{earnings_response.get('total_earnings', 0)}, Deliveries: {earnings_response.get('total_deliveries', 0)}")
-        return True
-    else:
-        print_test_result("Get Earnings", False, f"HTTP {response.status_code if response else 'No response'}")
-        return False
-
-def main():
-    """Run all tests"""
-    print("🚀 Starting ViaGo Backend API Tests")
-    print("=" * 50)
-    
-    test_results = []
-    
-    # Run all tests
-    test_results.append(("Health Check", test_health_check()))
-    test_results.append(("Customer Authentication", test_customer_auth()))
-    test_results.append(("Store Discovery", test_store_discovery()))
-    test_results.append(("Cart Flow", test_cart_flow()))
-    test_results.append(("Customer Address", test_customer_address()))
-    test_results.append(("Order Placement", test_order_placement()))
-    test_results.append(("Delivery Partner Auth", test_delivery_partner_auth()))
-    test_results.append(("Delivery Flow", test_delivery_flow()))
-    
-    # Summary
-    print("=" * 50)
-    print("📊 TEST SUMMARY")
-    print("=" * 50)
-    
-    passed = 0
-    failed = 0
-    
-    for test_name, result in test_results:
-        status = "✅ PASS" if result else "❌ FAIL"
+    def log_test(self, test_name, success, details):
+        """Log test results"""
+        result = {
+            "test": test_name,
+            "success": success,
+            "details": details,
+            "timestamp": datetime.now().isoformat()
+        }
+        self.test_results.append(result)
+        status = "✅ PASS" if success else "❌ FAIL"
         print(f"{status} {test_name}")
-        if result:
-            passed += 1
-        else:
-            failed += 1
+        if details:
+            print(f"   Details: {details}")
+        print()
+        
+    def test_health_check(self):
+        """Test basic health check"""
+        try:
+            response = self.session.get(f"{BACKEND_URL}/health")
+            if response.status_code == 200:
+                data = response.json()
+                self.log_test("Health Check", True, f"Status: {data.get('status')}, DB: {data.get('database')}")
+                return True
+            else:
+                self.log_test("Health Check", False, f"Status code: {response.status_code}")
+                return False
+        except Exception as e:
+            self.log_test("Health Check", False, f"Error: {str(e)}")
+            return False
     
-    print(f"\nTotal: {len(test_results)} tests")
-    print(f"Passed: {passed}")
-    print(f"Failed: {failed}")
-    print(f"Success Rate: {(passed/len(test_results)*100):.1f}%")
+    def test_otp_email_verified(self):
+        """Test 1: OTP Email Sending (Sandbox Mode) with verified email"""
+        try:
+            payload = {
+                "email": VERIFIED_EMAIL,
+                "role": "customer"
+            }
+            
+            response = self.session.post(f"{BACKEND_URL}/auth/send-otp", json=payload)
+            
+            if response.status_code == 200:
+                data = response.json()
+                email_sent = data.get("email_sent", False)
+                has_otp_in_response = "otp" in data
+                
+                if email_sent and not has_otp_in_response:
+                    self.log_test(
+                        "OTP Email Sending (Verified Email)", 
+                        True, 
+                        f"Email sent successfully to {VERIFIED_EMAIL}, OTP not in response (as expected)"
+                    )
+                    return True, data
+                elif not email_sent and has_otp_in_response:
+                    self.log_test(
+                        "OTP Email Sending (Verified Email)", 
+                        False, 
+                        f"Email failed to send but OTP shown in response: {data.get('otp')}"
+                    )
+                    return False, data
+                else:
+                    self.log_test(
+                        "OTP Email Sending (Verified Email)", 
+                        False, 
+                        f"Unexpected response: email_sent={email_sent}, has_otp={has_otp_in_response}"
+                    )
+                    return False, data
+            else:
+                self.log_test(
+                    "OTP Email Sending (Verified Email)", 
+                    False, 
+                    f"Status code: {response.status_code}, Response: {response.text}"
+                )
+                return False, None
+                
+        except Exception as e:
+            self.log_test("OTP Email Sending (Verified Email)", False, f"Error: {str(e)}")
+            return False, None
     
-    if failed == 0:
-        print("\n🎉 All tests passed! ViaGo backend is working correctly.")
-    else:
-        print(f"\n⚠️  {failed} test(s) failed. Please check the issues above.")
+    def test_otp_email_fallback(self):
+        """Test 2: OTP Email Fallback (Non-verified email)"""
+        try:
+            payload = {
+                "email": TEST_EMAIL,
+                "role": "customer"
+            }
+            
+            response = self.session.post(f"{BACKEND_URL}/auth/send-otp", json=payload)
+            
+            if response.status_code == 200:
+                data = response.json()
+                email_sent = data.get("email_sent", False)
+                has_otp_in_response = "otp" in data
+                
+                if not email_sent and has_otp_in_response:
+                    self.log_test(
+                        "OTP Email Fallback (Non-verified Email)", 
+                        True, 
+                        f"Email failed as expected, OTP shown for testing: {data.get('otp')}"
+                    )
+                    return True, data
+                elif email_sent:
+                    self.log_test(
+                        "OTP Email Fallback (Non-verified Email)", 
+                        False, 
+                        f"Unexpected: Email sent to non-verified address {TEST_EMAIL}"
+                    )
+                    return False, data
+                else:
+                    self.log_test(
+                        "OTP Email Fallback (Non-verified Email)", 
+                        False, 
+                        f"No OTP in response and email_sent={email_sent}"
+                    )
+                    return False, data
+            else:
+                self.log_test(
+                    "OTP Email Fallback (Non-verified Email)", 
+                    False, 
+                    f"Status code: {response.status_code}, Response: {response.text}"
+                )
+                return False, None
+                
+        except Exception as e:
+            self.log_test("OTP Email Fallback (Non-verified Email)", False, f"Error: {str(e)}")
+            return False, None
+    
+    def test_customer_registration_flow(self):
+        """Test 3: Full Customer Registration Flow with Welcome Email"""
+        try:
+            # Step 1: Send OTP to test email
+            otp_payload = {
+                "email": TEST_EMAIL,
+                "role": "customer"
+            }
+            
+            otp_response = self.session.post(f"{BACKEND_URL}/auth/send-otp", json=otp_payload)
+            
+            if otp_response.status_code != 200:
+                self.log_test(
+                    "Customer Registration Flow", 
+                    False, 
+                    f"Failed to send OTP: {otp_response.status_code}"
+                )
+                return False
+            
+            otp_data = otp_response.json()
+            otp = otp_data.get("otp")
+            
+            if not otp:
+                self.log_test(
+                    "Customer Registration Flow", 
+                    False, 
+                    "No OTP received in response"
+                )
+                return False
+            
+            # Step 2: Verify OTP with name (new user registration)
+            verify_payload = {
+                "email": TEST_EMAIL,
+                "otp": otp,
+                "name": "John Doe Test"
+            }
+            
+            verify_response = self.session.post(f"{BACKEND_URL}/auth/verify-otp", json=verify_payload)
+            
+            if verify_response.status_code == 200:
+                verify_data = verify_response.json()
+                access_token = verify_data.get("access_token")
+                user_data = verify_data.get("user")
+                
+                if access_token and user_data:
+                    self.log_test(
+                        "Customer Registration Flow", 
+                        True, 
+                        f"New customer registered successfully. User ID: {user_data.get('id')}, Welcome email should be sent"
+                    )
+                    return True
+                else:
+                    self.log_test(
+                        "Customer Registration Flow", 
+                        False, 
+                        f"Missing access_token or user data in response"
+                    )
+                    return False
+            else:
+                self.log_test(
+                    "Customer Registration Flow", 
+                    False, 
+                    f"OTP verification failed: {verify_response.status_code}, {verify_response.text}"
+                )
+                return False
+                
+        except Exception as e:
+            self.log_test("Customer Registration Flow", False, f"Error: {str(e)}")
+            return False
+    
+    def test_driver_creation_with_email(self):
+        """Test 4: Driver Creation with Email Notification"""
+        try:
+            # Generate unique email for driver
+            driver_email = f"driver_{uuid.uuid4().hex[:8]}@test.com"
+            driver_password = "testpass123"
+            
+            payload = {
+                "name": "Test Driver",
+                "email": driver_email,
+                "password": driver_password,
+                "phone": "9876543210",
+                "vehicle_type": "Bike",
+                "vehicle_number": "MH01AB1234"
+            }
+            
+            response = self.session.post(f"{BACKEND_URL}/auth/admin/drivers", json=payload)
+            
+            if response.status_code == 200:
+                data = response.json()
+                success = data.get("success", False)
+                email_sent = data.get("email_sent", False)
+                driver_data = data.get("driver", {})
+                
+                if success and driver_data:
+                    self.log_test(
+                        "Driver Creation with Email", 
+                        True, 
+                        f"Driver created successfully. ID: {driver_data.get('id')}, Email sent: {email_sent}"
+                    )
+                    return True, driver_email, driver_password
+                else:
+                    self.log_test(
+                        "Driver Creation with Email", 
+                        False, 
+                        f"Driver creation failed: success={success}"
+                    )
+                    return False, None, None
+            else:
+                self.log_test(
+                    "Driver Creation with Email", 
+                    False, 
+                    f"Status code: {response.status_code}, Response: {response.text}"
+                )
+                return False, None, None
+                
+        except Exception as e:
+            self.log_test("Driver Creation with Email", False, f"Error: {str(e)}")
+            return False, None, None
+    
+    def test_driver_login(self, email, password):
+        """Test 5: Driver Login (unchanged)"""
+        try:
+            payload = {
+                "email": email,
+                "password": password
+            }
+            
+            response = self.session.post(f"{BACKEND_URL}/auth/driver/login", json=payload)
+            
+            if response.status_code == 200:
+                data = response.json()
+                access_token = data.get("access_token")
+                user_data = data.get("user")
+                
+                if access_token and user_data and user_data.get("role") == "delivery_partner":
+                    self.log_test(
+                        "Driver Login", 
+                        True, 
+                        f"Driver login successful. User ID: {user_data.get('id')}"
+                    )
+                    return True
+                else:
+                    self.log_test(
+                        "Driver Login", 
+                        False, 
+                        f"Invalid response structure or role"
+                    )
+                    return False
+            else:
+                self.log_test(
+                    "Driver Login", 
+                    False, 
+                    f"Status code: {response.status_code}, Response: {response.text}"
+                )
+                return False
+                
+        except Exception as e:
+            self.log_test("Driver Login", False, f"Error: {str(e)}")
+            return False
+    
+    def test_role_separation(self):
+        """Test role separation - OTP should be rejected for delivery_partner role"""
+        try:
+            payload = {
+                "email": TEST_EMAIL,
+                "role": "delivery_partner"
+            }
+            
+            response = self.session.post(f"{BACKEND_URL}/auth/send-otp", json=payload)
+            
+            if response.status_code == 400:
+                data = response.json()
+                detail = data.get("detail", "")
+                
+                if "OTP authentication is only available for customers" in detail:
+                    self.log_test(
+                        "Role Separation (OTP Rejection)", 
+                        True, 
+                        "OTP correctly rejected for delivery_partner role"
+                    )
+                    return True
+                else:
+                    self.log_test(
+                        "Role Separation (OTP Rejection)", 
+                        False, 
+                        f"Wrong error message: {detail}"
+                    )
+                    return False
+            else:
+                self.log_test(
+                    "Role Separation (OTP Rejection)", 
+                    False, 
+                    f"Expected 400 status, got {response.status_code}"
+                )
+                return False
+                
+        except Exception as e:
+            self.log_test("Role Separation (OTP Rejection)", False, f"Error: {str(e)}")
+            return False
+    
+    def run_all_tests(self):
+        """Run all email integration tests"""
+        print("🚀 Starting ViaGo Backend API Email Integration Tests")
+        print("=" * 60)
+        
+        # Test 0: Health check
+        if not self.test_health_check():
+            print("❌ Health check failed, aborting tests")
+            return
+        
+        # Test 1: OTP Email Sending (Verified Email)
+        self.test_otp_email_verified()
+        
+        # Test 2: OTP Email Fallback (Non-verified Email)
+        self.test_otp_email_fallback()
+        
+        # Test 3: Customer Registration Flow
+        self.test_customer_registration_flow()
+        
+        # Test 4: Driver Creation with Email
+        driver_created, driver_email, driver_password = self.test_driver_creation_with_email()
+        
+        # Test 5: Driver Login (if driver was created)
+        if driver_created and driver_email and driver_password:
+            self.test_driver_login(driver_email, driver_password)
+        
+        # Test 6: Role Separation
+        self.test_role_separation()
+        
+        # Summary
+        print("=" * 60)
+        print("📊 TEST SUMMARY")
+        print("=" * 60)
+        
+        passed = sum(1 for result in self.test_results if result["success"])
+        total = len(self.test_results)
+        
+        print(f"Total Tests: {total}")
+        print(f"Passed: {passed}")
+        print(f"Failed: {total - passed}")
+        print(f"Success Rate: {(passed/total)*100:.1f}%")
+        
+        print("\n📋 DETAILED RESULTS:")
+        for result in self.test_results:
+            status = "✅" if result["success"] else "❌"
+            print(f"{status} {result['test']}")
+            if result["details"]:
+                print(f"   {result['details']}")
+        
+        return self.test_results
 
 if __name__ == "__main__":
-    main()
+    tester = ViaGoEmailTester()
+    results = tester.run_all_tests()

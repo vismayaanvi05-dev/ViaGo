@@ -20,6 +20,8 @@ def get_db():
 @router.post("/send-otp")
 async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
     """Send OTP for customer authentication (self-signup)"""
+    from services.email_service import send_otp_email
+    
     if not request.email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is required")
     
@@ -38,15 +40,24 @@ async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_d
         "attempts": 0
     }
     
-    # In production, send email via Resend/SendGrid
-    # For testing, we return OTP in response
-    return {
+    # Send OTP via email using Resend
+    email_result = await send_otp_email(request.email, otp)
+    
+    response_data = {
         "success": True,
         "message": "OTP sent to your email",
         "email": request.email,
-        "otp": otp,  # Remove in production - shown for testing
-        "expires_in_minutes": 5
+        "expires_in_minutes": 5,
+        "email_sent": email_result.get("success", False)
     }
+    
+    # Include OTP in response for testing (remove in production)
+    # Only show if email failed to send
+    if not email_result.get("success"):
+        response_data["otp"] = otp
+        response_data["note"] = "Email delivery pending - OTP shown for testing"
+    
+    return response_data
 
 @router.post("/verify-otp", response_model=LoginResponse)
 async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_db)):
@@ -89,6 +100,10 @@ async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_
         user_dict["updated_at"] = user_dict["updated_at"].isoformat()
         await db.users.insert_one(user_dict)
         user_doc = user_dict
+        
+        # Send welcome email to new customer
+        from services.email_service import send_welcome_email
+        await send_welcome_email(request.email, request.name)
     
     token_data = {
         "user_id": user_doc["id"],
@@ -202,6 +217,8 @@ async def create_driver(
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Create a new delivery driver (Tenant Admin only)"""
+    from services.email_service import send_driver_credentials_email
+    
     # For now, we'll create without admin auth for testing
     # In production, add proper auth with tenant admin verification
     
@@ -232,6 +249,13 @@ async def create_driver(
     
     await db.users.insert_one(driver)
     
+    # Send credentials email to the new driver
+    email_result = await send_driver_credentials_email(
+        driver_data.email, 
+        driver_data.name, 
+        driver_data.password
+    )
+    
     # Remove password from response
     driver.pop("password", None)
     driver.pop("_id", None)
@@ -239,7 +263,8 @@ async def create_driver(
     return {
         "success": True,
         "message": "Driver created successfully",
-        "driver": driver
+        "driver": driver,
+        "email_sent": email_result.get("success", False)
     }
 
 @router.get("/admin/drivers")
