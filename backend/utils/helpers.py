@@ -73,32 +73,61 @@ async def get_tenant_ids_by_location(db, lat: float = None, lng: float = None, t
     """
     Get tenant IDs that match the customer's town/city EXACTLY.
     No radius-based filtering — only exact town/city match.
+    Handles: case-insensitive, trim whitespace, common city name variants.
     """
-    match_town = town or city
+    import re as _re
+    
+    match_town = (town or city or "").strip()
+    
+    # Common city name aliases (normalize both sides)
+    CITY_ALIASES = {
+        "bangalore": "bengaluru",
+        "bombay": "mumbai",
+        "madras": "chennai",
+        "calcutta": "kolkata",
+        "poona": "pune",
+        "trivandrum": "thiruvananthapuram",
+        "cochin": "kochi",
+        "mysore": "mysuru",
+        "mangalore": "mangaluru",
+    }
     
     if match_town:
-        # Exact case-insensitive town/city match
+        normalized = match_town.lower().strip()
+        # Resolve alias to canonical name
+        canonical = CITY_ALIASES.get(normalized, normalized)
+        # Also find reverse aliases (in case DB has old name)
+        all_variants = {canonical}
+        for alias, canon in CITY_ALIASES.items():
+            if canon == canonical:
+                all_variants.add(alias)
+        all_variants.add(normalized)
+        
+        # Build regex patterns for all variants
+        or_conditions = []
+        for variant in all_variants:
+            # Escape regex special chars, case-insensitive, trim
+            escaped = _re.escape(variant)
+            or_conditions.append({"town": {"$regex": f"^\\s*{escaped}\\s*$", "$options": "i"}})
+            or_conditions.append({"city": {"$regex": f"^\\s*{escaped}\\s*$", "$options": "i"}})
+        
         query = {
-            "$or": [
-                {"town": {"$regex": f"^{match_town}$", "$options": "i"}},
-                {"city": {"$regex": f"^{match_town}$", "$options": "i"}},
-            ],
-            "status": "active"
+            "$or": or_conditions,
+            "$and": [
+                {"$or": [{"status": "active"}, {"is_active": True}]}
+            ]
         }
         tenants = await db.tenants.find(query, {"_id": 0, "id": 1}).to_list(100)
         matching_tenant_ids = [t["id"] for t in tenants]
-        
-        # If city was explicitly provided, return matches (even if empty)
-        # This ensures only matching city stores are shown
         return matching_tenant_ids
     
-    # No city provided — fallback to ALL active tenants (for dev/testing)
+    # No city provided — fallback to ALL active tenants
     all_tenants = await db.tenants.find(
-        {"status": "active"}, {"_id": 0, "id": 1}
+        {"$or": [{"status": "active"}, {"is_active": True}]},
+        {"_id": 0, "id": 1}
     ).to_list(100)
     
     if not all_tenants:
-        # If no active tenants found, return all tenants as last resort
         all_tenants = await db.tenants.find({}, {"_id": 0, "id": 1}).to_list(100)
     
     return [t["id"] for t in all_tenants]

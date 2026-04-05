@@ -444,3 +444,132 @@ async def reset_password(
         "success": True,
         "message": "Password reset successfully"
     }
+
+
+
+# ==================== CUSTOMER EMAIL+PASSWORD AUTH ====================
+
+class CustomerSignup(BaseModel):
+    email: str
+    password: str
+    name: str
+
+class CustomerPasswordLogin(BaseModel):
+    email: str
+    password: str
+
+@router.post("/customer/signup")
+async def customer_signup(request: CustomerSignup, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Customer signup with email + password
+    """
+    # Check if email already exists
+    existing = await db.users.find_one({"email": request.email, "role": "customer"})
+    if existing:
+        if existing.get("password"):
+            raise HTTPException(status_code=400, detail="Email already registered. Please login.")
+        else:
+            # OTP-only account - upgrade to password account
+            await db.users.update_one(
+                {"email": request.email, "role": "customer"},
+                {"$set": {
+                    "password": get_password_hash(request.password),
+                    "name": request.name if request.name else existing.get("name", ""),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
+            user_data = existing
+            user_data["name"] = request.name if request.name else existing.get("name", "")
+            user_data["password"] = "set"  # Don't expose hash
+            user_data.pop("_id", None)
+            
+            token_data = {
+                "user_id": user_data["id"],
+                "email": user_data["email"],
+                "role": "customer",
+                "tenant_id": user_data.get("tenant_id"),
+            }
+            access_token = create_access_token(token_data)
+            
+            if isinstance(user_data.get("created_at"), str):
+                user_data["created_at"] = datetime.fromisoformat(user_data["created_at"])
+            if isinstance(user_data.get("updated_at"), str):
+                user_data["updated_at"] = datetime.fromisoformat(user_data.get("updated_at", datetime.now(timezone.utc).isoformat()))
+            
+            return LoginResponse(
+                access_token=access_token,
+                user=User(**user_data),
+                tenant=None
+            )
+    
+    user_data = {
+        "id": str(uuid.uuid4()),
+        "name": request.name,
+        "email": request.email,
+        "phone": "",
+        "role": "customer",
+        "tenant_id": None,
+        "store_id": None,
+        "password": get_password_hash(request.password),
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.insert_one(user_data)
+    
+    # Create JWT token
+    token_data = {
+        "user_id": user_data["id"],
+        "email": user_data["email"],
+        "role": "customer",
+        "tenant_id": None,
+    }
+    access_token = create_access_token(token_data)
+    
+    # Convert datetime for response
+    user_data["created_at"] = datetime.fromisoformat(user_data["created_at"])
+    user_data["updated_at"] = datetime.fromisoformat(user_data["updated_at"])
+    user_data.pop("_id", None)
+    
+    return LoginResponse(
+        access_token=access_token,
+        user=User(**user_data),
+        tenant=None
+    )
+
+@router.post("/customer/login")
+async def customer_password_login(request: CustomerPasswordLogin, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Customer login with email + password
+    """
+    user_doc = await db.users.find_one({"email": request.email, "role": "customer"}, {"_id": 0})
+    
+    if not user_doc:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    if not user_doc.get("password"):
+        raise HTTPException(status_code=401, detail="This account uses OTP login. Please use OTP to login.")
+    
+    if not verify_password(request.password, user_doc["password"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Create JWT token
+    token_data = {
+        "user_id": user_doc["id"],
+        "email": user_doc["email"],
+        "role": "customer",
+        "tenant_id": user_doc.get("tenant_id"),
+    }
+    access_token = create_access_token(token_data)
+    
+    # Convert datetime fields
+    if isinstance(user_doc.get("created_at"), str):
+        user_doc["created_at"] = datetime.fromisoformat(user_doc["created_at"])
+    if isinstance(user_doc.get("updated_at"), str):
+        user_doc["updated_at"] = datetime.fromisoformat(user_doc["updated_at"])
+    
+    return LoginResponse(
+        access_token=access_token,
+        user=User(**user_doc),
+        tenant=None
+    )

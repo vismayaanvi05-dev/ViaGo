@@ -44,9 +44,9 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
         getCurrentLocation();
       } else {
         setPermissionGranted(false);
-        // Set default location for testing
-        setLocation({ latitude: 19.0760, longitude: 72.8777 });
-        setAddress({ city: 'Mumbai', formattedAddress: 'Mumbai, Maharashtra' });
+        // Default location: Bengaluru
+        setLocation({ latitude: 12.9716, longitude: 77.5946 });
+        setAddress({ city: 'Bengaluru', formattedAddress: 'Bengaluru, Karnataka' });
         setLoading(false);
       }
     } catch (error) {

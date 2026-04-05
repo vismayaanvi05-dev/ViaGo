@@ -19,8 +19,11 @@ interface AuthContextType {
   appMode: 'customer' | 'driver' | null;
   setAppMode: (mode: 'customer' | 'driver') => Promise<void>;
   // Customer OTP auth
-  sendOTP: (email: string) => Promise<{ success: boolean; otp?: string; error?: string }>;
+  sendOTP: (email: string) => Promise<{ success: boolean; otp?: string; email_sent?: boolean; error?: string }>;
   verifyOTP: (email: string, otp: string, name?: string) => Promise<{ success: boolean; error?: string }>;
+  // Customer password auth
+  customerSignup: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
+  customerLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   // Driver password auth
   driverLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -98,6 +101,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Customer password authentication
+  const customerSignup = async (email: string, password: string, name: string) => {
+    try {
+      const response = await customerAPI.signup(email, password, name);
+      const { access_token, user: userData } = response.data;
+      
+      await AsyncStorage.setItem('authToken', access_token);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.setItem('appMode', 'customer');
+      
+      setToken(access_token);
+      setUser(userData);
+      setAppModeState('customer');
+      
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.response?.data?.detail || 'Signup failed' };
+    }
+  };
+
+  const customerLogin = async (email: string, password: string) => {
+    try {
+      const response = await customerAPI.login(email, password);
+      const { access_token, user: userData } = response.data;
+      
+      await AsyncStorage.setItem('authToken', access_token);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.setItem('appMode', 'customer');
+      
+      setToken(access_token);
+      setUser(userData);
+      setAppModeState('customer');
+      
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.response?.data?.detail || 'Invalid credentials' };
+    }
+  };
+
   // Driver password authentication
   const driverLogin = async (email: string, password: string) => {
     try {
@@ -158,6 +200,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setAppMode,
         sendOTP,
         verifyOTP,
+        customerSignup,
+        customerLogin,
         driverLogin,
         logout,
         updateUser,

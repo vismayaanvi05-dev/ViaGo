@@ -38,11 +38,15 @@ apiClient.interceptors.response.use(
 
 export default apiClient;
 
-// Customer APIs (OTP-based auth)
+// Customer APIs
 export const customerAPI = {
   // Auth - OTP based
   sendOTP: (email: string) => apiClient.post('/auth/send-otp', { email, role: 'customer' }),
   verifyOTP: (email: string, otp: string, name?: string) => apiClient.post('/auth/verify-otp', { email, otp, role: 'customer', name }),
+  
+  // Auth - Password based
+  signup: (email: string, password: string, name: string) => apiClient.post('/auth/customer/signup', { email, password, name }),
+  login: (email: string, password: string) => apiClient.post('/auth/customer/login', { email, password }),
   
   // App
   getConfig: (lat: number, lng: number, city?: string) => 

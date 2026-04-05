@@ -1,309 +1,379 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Modal,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { APP_CONFIG, IS_DEV_MODE } from '@/src/config';
-import { Ionicons } from '@expo/vector-icons';
+
+const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 export default function CustomerLoginScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { sendOTP, verifyOTP, setAppMode, isAuthenticated, appMode } = useAuth();
-  
+  const { sendOTP, verifyOTP, customerLogin, customerSignup, setAppMode } = useAuth();
+
+  // Auth mode: 'password' (default, reliable) or 'otp'
+  const [authMode, setAuthMode] = useState<'password' | 'otp'>('password');
+  // Steps for OTP: 'email' -> 'otp' -> 'name'
+  const [otpStep, setOtpStep] = useState<'email' | 'otp' | 'name'>('email');
+  // Steps for password: 'login' -> 'signup'
+  const [passwordStep, setPasswordStep] = useState<'login' | 'signup'>('login');
+
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
+  const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [step, setStep] = useState<'email' | 'otp' | 'name'>('email');
+  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  useEffect(() => {
-    setAppMode('customer');
-  }, []);
-
-  useEffect(() => {
-    if (isAuthenticated && appMode === 'customer') {
-      router.replace('/(customer)/home');
-    }
-  }, [isAuthenticated, appMode]);
+  useEffect(() => { setAppMode('customer'); }, []);
 
   const showError = (msg: string) => {
     setErrorMsg(msg);
     setTimeout(() => setErrorMsg(''), 4000);
   };
 
-  const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  const handleSendOTP = async () => {
-    if (!validateEmail(email)) {
-      showError('Please enter a valid email address');
-      return;
-    }
-
+  // ===== PASSWORD AUTH =====
+  const handlePasswordLogin = async () => {
+    if (!validateEmail(email)) { showError('Please enter a valid email'); return; }
+    if (password.length < 6) { showError('Password must be at least 6 characters'); return; }
     setLoading(true);
     setErrorMsg('');
-    try {
-      const result = await sendOTP(email);
-      setLoading(false);
-
-      if (result.success) {
-        if (result.email_sent) {
-          setSuccessMsg(`Verification code sent to ${email}`);
-        } else {
-          showError('Could not deliver email. Please verify your email address or try again later.');
-          return;
-        }
-        setTimeout(() => setSuccessMsg(''), 4000);
-        setStep('otp');
+    const result = await customerLogin(email, password);
+    setLoading(false);
+    if (result.success) {
+      router.replace('/(customer)/home');
+    } else {
+      if (result.error?.includes('OTP login')) {
+        showError('This account uses OTP login. Switch to OTP mode.');
       } else {
-        showError(result.error || 'Failed to send OTP');
+        showError(result.error || 'Login failed');
       }
-    } catch (error) {
-      setLoading(false);
-      showError('Something went wrong. Please try again.');
+    }
+  };
+
+  const handlePasswordSignup = async () => {
+    if (!name.trim()) { showError('Please enter your name'); return; }
+    if (!validateEmail(email)) { showError('Please enter a valid email'); return; }
+    if (password.length < 6) { showError('Password must be at least 6 characters'); return; }
+    setLoading(true);
+    setErrorMsg('');
+    const result = await customerSignup(email, password, name);
+    setLoading(false);
+    if (result.success) {
+      router.replace('/(customer)/home');
+    } else {
+      showError(result.error || 'Signup failed');
+    }
+  };
+
+  // ===== OTP AUTH =====
+  const handleSendOTP = async () => {
+    if (!validateEmail(email)) { showError('Please enter a valid email address'); return; }
+    setLoading(true);
+    setErrorMsg('');
+    const result = await sendOTP(email);
+    setLoading(false);
+    if (result.success) {
+      if (result.email_sent) {
+        setSuccessMsg(`Verification code sent to ${email}`);
+        setTimeout(() => setSuccessMsg(''), 4000);
+        setOtpStep('otp');
+      } else {
+        showError('Could not deliver email. Please check your email or use Password login.');
+      }
+    } else {
+      showError(result.error || 'Failed to send OTP');
     }
   };
 
   const handleVerifyOTP = async () => {
-    if (otp.length !== 6) {
-      showError('Please enter the 6-digit verification code');
-      return;
-    }
-
+    if (otp.length !== 6) { showError('Please enter 6-digit code'); return; }
     setLoading(true);
     setErrorMsg('');
-    try {
-      const result = await verifyOTP(email, otp, name || undefined);
-      setLoading(false);
-
-      if (result.success) {
-        // Will auto-redirect via useEffect
-      } else if (result.error?.includes('Name required')) {
-        setStep('name');
+    const result = await verifyOTP(email, otp, name || undefined);
+    setLoading(false);
+    if (result.success) {
+      router.replace('/(customer)/home');
+    } else {
+      if (result.error?.includes('name')) {
+        setOtpStep('name');
       } else {
-        showError(result.error || 'Invalid verification code');
+        showError(result.error || 'Invalid OTP');
       }
-    } catch (error) {
-      setLoading(false);
-      showError('Something went wrong. Please try again.');
     }
   };
 
-  const handleSubmitName = async () => {
-    if (!name.trim()) {
-      showError('Please enter your name');
-      return;
+  const handleNameSubmit = async () => {
+    if (!name.trim()) { showError('Please enter your name'); return; }
+    setLoading(true);
+    const result = await verifyOTP(email, otp, name);
+    setLoading(false);
+    if (result.success) {
+      router.replace('/(customer)/home');
+    } else {
+      showError(result.error || 'Something went wrong');
     }
-    await handleVerifyOTP();
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView
+        style={[styles.container, { paddingTop: insets.top }]}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
         <View style={styles.header}>
-          {IS_DEV_MODE ? (
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={22} color="#1E293B" />
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 40 }} />
-          )}
-          <Text style={styles.headerTitle}>Customer</Text>
-          <View style={{ width: 40 }} />
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#1F2937" />
+          </TouchableOpacity>
+          <View style={styles.logoContainer}>
+            <View style={styles.logoCircle}>
+              <Ionicons name="bag-handle" size={36} color="#fff" />
+            </View>
+            <Text style={styles.appName}>ViaGo</Text>
+            <Text style={styles.subtitle}>Customer Login</Text>
+          </View>
         </View>
 
-        <View style={styles.content}>
-          {/* Icon */}
-          <View style={[styles.iconContainer, { backgroundColor: APP_CONFIG.PRIMARY_COLOR }]}>
-            <Ionicons name="bag-handle" size={36} color="#fff" />
+        {/* Auth Mode Toggle */}
+        <View style={styles.modeToggle}>
+          <TouchableOpacity
+            style={[styles.modeBtn, authMode === 'password' && styles.modeBtnActive]}
+            onPress={() => { setAuthMode('password'); setErrorMsg(''); }}
+          >
+            <Ionicons name="lock-closed" size={16} color={authMode === 'password' ? '#fff' : '#8B5CF6'} />
+            <Text style={[styles.modeBtnText, authMode === 'password' && styles.modeBtnTextActive]}>Password</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeBtn, authMode === 'otp' && styles.modeBtnActive]}
+            onPress={() => { setAuthMode('otp'); setOtpStep('email'); setErrorMsg(''); }}
+          >
+            <Ionicons name="mail" size={16} color={authMode === 'otp' ? '#fff' : '#8B5CF6'} />
+            <Text style={[styles.modeBtnText, authMode === 'otp' && styles.modeBtnTextActive]}>Email OTP</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Error / Success Banners */}
+        {errorMsg ? (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle" size={16} color="#DC2626" />
+            <Text style={styles.errorText}>{errorMsg}</Text>
           </View>
-          
-          <Text style={styles.title}>
-            {step === 'email' && 'Welcome'}
-            {step === 'otp' && 'Verify Email'}
-            {step === 'name' && 'Almost Done'}
-          </Text>
-          <Text style={styles.subtitle}>
-            {step === 'email' && 'Sign in with your email to continue'}
-            {step === 'otp' && `Enter the code sent to ${email}`}
-            {step === 'name' && 'Tell us your name to get started'}
-          </Text>
+        ) : null}
+        {successMsg ? (
+          <View style={styles.successBanner}>
+            <Ionicons name="checkmark-circle" size={16} color="#059669" />
+            <Text style={styles.successText}>{successMsg}</Text>
+          </View>
+        ) : null}
 
-          {/* Error/Success Banner */}
-          {errorMsg ? (
-            <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle" size={16} color="#DC2626" />
-              <Text style={styles.errorBannerText}>{errorMsg}</Text>
-            </View>
-          ) : null}
-          {successMsg ? (
-            <View style={styles.successBanner}>
-              <Ionicons name="checkmark-circle" size={16} color="#059669" />
-              <Text style={styles.successBannerText}>{successMsg}</Text>
-            </View>
-          ) : null}
+        {/* ===== PASSWORD MODE ===== */}
+        {authMode === 'password' && (
+          <View style={styles.form}>
+            {passwordStep === 'signup' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Full Name</Text>
+                <View style={styles.inputContainer}>
+                  <Ionicons name="person-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your name"
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+              </View>
+            )}
 
-          {step === 'email' && (
-            <View style={styles.form}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email</Text>
               <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                <Ionicons name="mail-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="your@email.com"
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
+                  placeholder="Enter your email"
                   value={email}
                   onChangeText={setEmail}
-                  editable={!loading}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholderTextColor="#9CA3AF"
                 />
               </View>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: APP_CONFIG.PRIMARY_COLOR }]}
-                onPress={handleSendOTP}
-                disabled={loading}
-                activeOpacity={0.85}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Continue</Text>
-                )}
-              </TouchableOpacity>
             </View>
-          )}
 
-          {step === 'otp' && (
-            <View style={styles.form}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Password</Text>
               <View style={styles.inputContainer}>
-                <Ionicons name="keypad-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                <Ionicons name="lock-closed-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
-                  placeholder="6-digit code"
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  value={otp}
-                  onChangeText={setOtp}
-                  editable={!loading}
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Enter password (min 6 chars)"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  placeholderTextColor="#9CA3AF"
                 />
-              </View>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: APP_CONFIG.PRIMARY_COLOR }]}
-                onPress={handleVerifyOTP}
-                disabled={loading}
-                activeOpacity={0.85}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Verify</Text>
-                )}
-              </TouchableOpacity>
-              <View style={styles.linkRow}>
-                <TouchableOpacity onPress={() => { setStep('email'); setOtp(''); }}>
-                  <Text style={[styles.linkText, { color: APP_CONFIG.PRIMARY_COLOR }]}>Change email</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleSendOTP} disabled={loading}>
-                  <Text style={[styles.linkText, { color: APP_CONFIG.PRIMARY_COLOR }]}>Resend code</Text>
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                  <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color="#9CA3AF" />
                 </TouchableOpacity>
               </View>
             </View>
-          )}
 
-          {step === 'name' && (
-            <View style={styles.form}>
+            <TouchableOpacity
+              style={[styles.primaryBtn, loading && styles.btnDisabled]}
+              onPress={passwordStep === 'login' ? handlePasswordLogin : handlePasswordSignup}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.primaryBtnText}>
+                  {passwordStep === 'login' ? 'Login' : 'Create Account'}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.switchBtn}
+              onPress={() => {
+                setPasswordStep(passwordStep === 'login' ? 'signup' : 'login');
+                setErrorMsg('');
+              }}
+            >
+              <Text style={styles.switchText}>
+                {passwordStep === 'login' ? "Don't have an account? " : "Already have an account? "}
+                <Text style={styles.switchLink}>{passwordStep === 'login' ? 'Sign Up' : 'Login'}</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ===== OTP MODE ===== */}
+        {authMode === 'otp' && otpStep === 'email' && (
+          <View style={styles.form}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email</Text>
               <View style={styles.inputContainer}>
-                <Ionicons name="person-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                <Ionicons name="mail-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Your full name"
-                  placeholderTextColor="#94A3B8"
-                  value={name}
-                  onChangeText={setName}
-                  editable={!loading}
+                  placeholder="Enter your email"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholderTextColor="#9CA3AF"
                 />
               </View>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: APP_CONFIG.PRIMARY_COLOR }]}
-                onPress={handleSubmitName}
-                disabled={loading}
-                activeOpacity={0.85}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Create Account</Text>
-                )}
-              </TouchableOpacity>
             </View>
-          )}
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            <TouchableOpacity
+              style={[styles.primaryBtn, loading && styles.btnDisabled]}
+              onPress={handleSendOTP}
+              disabled={loading}
+            >
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Send OTP</Text>}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {authMode === 'otp' && otpStep === 'otp' && (
+          <View style={styles.form}>
+            <Text style={styles.otpInfo}>Enter the 6-digit code sent to {email}</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="keypad-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter 6-digit OTP"
+                value={otp}
+                onChangeText={setOtp}
+                keyboardType="number-pad"
+                maxLength={6}
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+            <TouchableOpacity
+              style={[styles.primaryBtn, loading && styles.btnDisabled]}
+              onPress={handleVerifyOTP}
+              disabled={loading}
+            >
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Verify</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setOtpStep('email'); setOtp(''); }} style={styles.switchBtn}>
+              <Text style={styles.switchText}>
+                <Text style={styles.switchLink}>Change email</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {authMode === 'otp' && otpStep === 'name' && (
+          <View style={styles.form}>
+            <Text style={styles.otpInfo}>Almost done! Enter your name to complete registration.</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="person-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your name"
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="words"
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+            <TouchableOpacity
+              style={[styles.primaryBtn, loading && styles.btnDisabled]}
+              onPress={handleNameSubmit}
+              disabled={loading}
+            >
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Complete Signup</Text>}
+            </TouchableOpacity>
+          </View>
+        )}
+
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  keyboardView: { flex: 1 },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 12, paddingVertical: 8,
-  },
-  backButton: {
-    width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
-  },
-  headerTitle: { fontSize: 16, fontWeight: '600', color: '#1E293B' },
-  content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  iconContainer: {
-    width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center',
-    marginBottom: 24,
-  },
-  title: { fontSize: 26, fontWeight: '800', color: '#0F172A', marginBottom: 6 },
-  subtitle: { fontSize: 15, color: '#64748B', textAlign: 'center', marginBottom: 28, lineHeight: 22 },
-  form: { width: '100%' },
-  inputContainer: {
-    flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#E2E8F0',
-    borderRadius: 14, marginBottom: 14, backgroundColor: '#F8FAFC',
-  },
-  inputIcon: { paddingLeft: 16, paddingRight: 4 },
-  input: { flex: 1, padding: 16, paddingLeft: 8, fontSize: 16, color: '#0F172A' },
-  button: {
-    paddingVertical: 16, borderRadius: 14, width: '100%', alignItems: 'center',
-    marginBottom: 14,
-  },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  linkRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 },
-  linkText: { fontSize: 14, fontWeight: '600' },
-  errorBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2',
-    borderWidth: 1, borderColor: '#FECACA', padding: 12, borderRadius: 12, marginBottom: 16, width: '100%',
-  },
-  errorBannerText: { fontSize: 13, color: '#DC2626', flex: 1 },
-  successBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F0FDF4',
-    borderWidth: 1, borderColor: '#BBF7D0', padding: 12, borderRadius: 12, marginBottom: 16, width: '100%',
-  },
-  successBannerText: { fontSize: 13, color: '#059669', flex: 1 },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  content: { padding: 24, paddingBottom: 60 },
+  header: { marginBottom: 24 },
+  backBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  logoContainer: { alignItems: 'center' },
+  logoCircle: { width: 72, height: 72, borderRadius: 20, backgroundColor: '#8B5CF6', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  appName: { fontSize: 28, fontWeight: '800', color: '#1F2937', letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, color: '#6B7280', marginTop: 4 },
+  modeToggle: { flexDirection: 'row', backgroundColor: '#F3F4F6', borderRadius: 12, padding: 4, marginBottom: 20 },
+  modeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 10 },
+  modeBtnActive: { backgroundColor: '#8B5CF6' },
+  modeBtnText: { fontSize: 14, fontWeight: '600', color: '#8B5CF6' },
+  modeBtnTextActive: { color: '#fff' },
+  form: { gap: 16 },
+  inputGroup: { gap: 6 },
+  inputLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginLeft: 4 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#E5E7EB', paddingHorizontal: 14, height: 52 },
+  inputIcon: { marginRight: 10 },
+  input: { flex: 1, fontSize: 15, color: '#1F2937' },
+  eyeBtn: { padding: 4 },
+  primaryBtn: { backgroundColor: '#8B5CF6', borderRadius: 14, height: 52, justifyContent: 'center', alignItems: 'center' },
+  btnDisabled: { opacity: 0.6 },
+  primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  switchBtn: { alignItems: 'center', paddingVertical: 8 },
+  switchText: { fontSize: 14, color: '#6B7280' },
+  switchLink: { color: '#8B5CF6', fontWeight: '600' },
+  errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', borderRadius: 12, padding: 12, marginBottom: 12 },
+  errorText: { fontSize: 13, color: '#DC2626', flex: 1 },
+  successBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 12, padding: 12, marginBottom: 12 },
+  successText: { fontSize: 13, color: '#059669', flex: 1 },
+  otpInfo: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 8 },
 });
