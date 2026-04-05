@@ -65,15 +65,33 @@ async def get_app_config(
     if food_stores:
         config["available_modules"].append("food")
 
-    # Check Grocery stores
+    # Check Grocery: either dedicated grocery stores OR tenant-level grocery data
     grocery_stores = await db.stores.find({**base_query, "store_type": "grocery"}).to_list(1)
     if grocery_stores:
         config["available_modules"].append("grocery")
+    else:
+        # Check if tenant has grocery categories/products (tenant-level grocery data)
+        grocery_data = await db.grocery_categories.find_one(
+            {"tenant_id": {"$in": matching_tenant_ids}, "is_active": True}
+        )
+        if grocery_data:
+            config["available_modules"].append("grocery")
 
-    # Check Laundry stores
+    # Check Laundry: either dedicated laundry stores OR tenant-level laundry data
     laundry_stores = await db.stores.find({**base_query, "store_type": "laundry"}).to_list(1)
     if laundry_stores:
         config["available_modules"].append("laundry")
+    else:
+        # Check if tenant has laundry services/items (tenant-level laundry data)
+        laundry_data = await db.laundry_services.find_one(
+            {"tenant_id": {"$in": matching_tenant_ids}, "is_active": True}
+        )
+        if not laundry_data:
+            laundry_data = await db.laundry_items.find_one(
+                {"tenant_id": {"$in": matching_tenant_ids}, "is_active": True}
+            )
+        if laundry_data:
+            config["available_modules"].append("laundry")
 
     return config
 
@@ -181,6 +199,58 @@ async def discover_stores(
         query["name"] = {"$regex": search, "$options": "i"}
     
     stores = await db.stores.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    
+    # If no dedicated grocery/laundry stores found, create virtual stores from tenant data
+    if not stores and module in ("grocery", "laundry"):
+        for tid in matching_tenant_ids:
+            tenant = await db.tenants.find_one({"id": tid}, {"_id": 0})
+            if not tenant:
+                continue
+            
+            has_data = False
+            if module == "grocery":
+                has_data = bool(await db.grocery_categories.find_one({"tenant_id": tid, "is_active": True}))
+            elif module == "laundry":
+                has_data = bool(await db.laundry_services.find_one({"tenant_id": tid, "is_active": True})) or \
+                           bool(await db.laundry_items.find_one({"tenant_id": tid, "is_active": True}))
+            
+            if has_data:
+                # Build a virtual store from tenant info for customer browsing
+                virtual_store = {
+                    "id": f"{tid}_{module}",
+                    "tenant_id": tid,
+                    "name": f"{tenant.get('name', 'Store')} - {module.capitalize()}",
+                    "store_type": module,
+                    "description": "",
+                    "logo_url": tenant.get("logo_url"),
+                    "banner_url": None,
+                    "address_line": tenant.get("address", ""),
+                    "city": tenant.get("town", "").capitalize() if tenant.get("town") else "",
+                    "state": "",
+                    "pincode": "",
+                    "lat": tenant.get("lat"),
+                    "lng": tenant.get("lng"),
+                    "phone": "",
+                    "email": "",
+                    "delivery_radius_km": 20.0,
+                    "minimum_order_value": 0.0,
+                    "average_prep_time_minutes": 30,
+                    "cuisine_types": [],
+                    "opening_time": "09:00",
+                    "closing_time": "22:00",
+                    "is_active": True,
+                    "is_accepting_orders": True,
+                    "is_deleted": False,
+                    "created_at": tenant.get("created_at", ""),
+                    "updated_at": tenant.get("updated_at", ""),
+                    "distance_km": None,
+                    "is_deliverable": True,
+                    "tenant_name": tenant.get("name", ""),
+                    "rating": 0,
+                    "total_reviews": 0,
+                    "is_virtual": True
+                }
+                stores.append(virtual_store)
     
     # Calculate distance for display purposes only (no filtering by radius)
     for store in stores:
@@ -1041,10 +1111,213 @@ async def get_restaurant_details(
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
-    Get restaurant details with menu
+    Get restaurant/store details with menu.
+    Also handles virtual grocery/laundry stores (tenant-level data).
+    Virtual store IDs: {tenant_id}_grocery, {tenant_id}_laundry
     """
     await require_role(current_user, ["customer"])
     
+    # Check if this is a virtual grocery/laundry store
+    is_virtual = False
+    virtual_module = None
+    tenant_id_from_virtual = None
+    
+    if store_id.endswith("_grocery"):
+        is_virtual = True
+        virtual_module = "grocery"
+        tenant_id_from_virtual = store_id.replace("_grocery", "")
+    elif store_id.endswith("_laundry"):
+        is_virtual = True
+        virtual_module = "laundry"
+        tenant_id_from_virtual = store_id.replace("_laundry", "")
+    
+    if is_virtual:
+        # Handle virtual store (tenant-level grocery/laundry data)
+        tenant = await db.tenants.find_one({"id": tenant_id_from_virtual}, {"_id": 0})
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Store not found")
+        
+        # Build virtual store object
+        store = {
+            "id": store_id,
+            "tenant_id": tenant_id_from_virtual,
+            "name": f"{tenant.get('name', 'Store')} - {virtual_module.capitalize()}",
+            "store_type": virtual_module,
+            "description": "",
+            "logo_url": tenant.get("logo_url"),
+            "banner_url": None,
+            "address_line": tenant.get("address", ""),
+            "city": tenant.get("town", "").capitalize() if tenant.get("town") else "",
+            "state": "",
+            "pincode": "",
+            "lat": tenant.get("lat"),
+            "lng": tenant.get("lng"),
+            "phone": "",
+            "email": "",
+            "delivery_radius_km": 20.0,
+            "minimum_order_value": 0.0,
+            "average_prep_time_minutes": 30,
+            "cuisine_types": [],
+            "opening_time": "09:00",
+            "closing_time": "22:00",
+            "is_active": True,
+            "is_accepting_orders": True,
+            "is_deleted": False,
+            "created_at": tenant.get("created_at", ""),
+            "updated_at": tenant.get("updated_at", ""),
+            "is_virtual": True
+        }
+        
+        if virtual_module == "grocery":
+            # Get grocery categories and products for this tenant
+            categories = await db.grocery_categories.find(
+                {"tenant_id": tenant_id_from_virtual, "is_active": True},
+                {"_id": 0}
+            ).sort("sort_order", 1).to_list(100)
+            
+            for cat in categories:
+                products = await db.grocery_products.find(
+                    {"category_id": cat["id"], "is_available": True, "is_deleted": {"$ne": True}},
+                    {"_id": 0}
+                ).to_list(500)
+                
+                # Map grocery products to item format for frontend compatibility
+                items = []
+                for p in products:
+                    items.append({
+                        "id": p["id"],
+                        "name": p["name"],
+                        "description": p.get("description", ""),
+                        "base_price": p.get("selling_price", p.get("mrp", 0)),
+                        "mrp": p.get("mrp", 0),
+                        "selling_price": p.get("selling_price", 0),
+                        "discount_percentage": p.get("discount_percentage", 0),
+                        "unit_type": p.get("unit_type", ""),
+                        "unit_value": p.get("unit_value", 1),
+                        "images": p.get("images", []),
+                        "is_available": p.get("is_available", True),
+                        "is_veg": True,
+                        "module": "grocery",
+                        "category_id": cat["id"],
+                        "store_id": store_id,
+                        "tenant_id": tenant_id_from_virtual,
+                        "brand": p.get("brand", ""),
+                        "is_organic": p.get("is_organic", False),
+                        "is_fresh": p.get("is_fresh", False),
+                        "current_stock": p.get("current_stock", 0),
+                        "in_stock": p.get("current_stock", 0) > 0,
+                        "variants": [],
+                        "addons": []
+                    })
+                
+                cat["items"] = items
+                cat["module"] = "grocery"
+            
+            store["categories"] = categories
+        
+        elif virtual_module == "laundry":
+            # Get laundry services, items and pricing for this tenant
+            services = await db.laundry_services.find(
+                {"tenant_id": tenant_id_from_virtual, "is_active": True},
+                {"_id": 0}
+            ).sort("sort_order", 1).to_list(100)
+            
+            laundry_items_list = await db.laundry_items.find(
+                {"tenant_id": tenant_id_from_virtual, "is_active": True},
+                {"_id": 0}
+            ).sort("sort_order", 1).to_list(200)
+            
+            all_pricing = await db.laundry_pricing.find(
+                {"tenant_id": tenant_id_from_virtual, "is_active": True},
+                {"_id": 0}
+            ).to_list(500)
+            
+            # Build categories from services, items from laundry_items with pricing
+            categories = []
+            for svc in services:
+                # Find pricing entries for this service
+                svc_pricing = [p for p in all_pricing if p.get("service_id") == svc["id"]]
+                
+                # Build items from laundry items that have pricing for this service
+                items = []
+                for li in laundry_items_list:
+                    item_pricing = [p for p in svc_pricing if p.get("item_id") == li["id"]]
+                    if item_pricing:
+                        price_info = item_pricing[0]
+                        items.append({
+                            "id": li["id"],
+                            "name": li["name"],
+                            "description": li.get("category", ""),
+                            "base_price": price_info.get("price", 0),
+                            "pricing_type": price_info.get("pricing_type", "per_item"),
+                            "images": [li.get("image_url")] if li.get("image_url") else [],
+                            "is_available": True,
+                            "is_veg": True,
+                            "module": "laundry",
+                            "category_id": svc["id"],
+                            "store_id": store_id,
+                            "tenant_id": tenant_id_from_virtual,
+                            "service_name": svc["name"],
+                            "turnaround_hours": svc.get("turnaround_time_hours", 24),
+                            "variants": [],
+                            "addons": []
+                        })
+                
+                if items:
+                    categories.append({
+                        "id": svc["id"],
+                        "name": f"{svc['name']} Service",
+                        "description": svc.get("description", ""),
+                        "module": "laundry",
+                        "is_active": True,
+                        "items": items
+                    })
+            
+            # If no service-based categories, create category from laundry item categories
+            if not categories and laundry_items_list:
+                cat_groups = {}
+                for li in laundry_items_list:
+                    cat_name = li.get("category", "General")
+                    if cat_name not in cat_groups:
+                        cat_groups[cat_name] = []
+                    
+                    # Find any pricing for this item
+                    item_prices = [p for p in all_pricing if p.get("item_id") == li["id"]]
+                    price = item_prices[0].get("price", 0) if item_prices else 0
+                    pricing_type = item_prices[0].get("pricing_type", "per_item") if item_prices else "per_item"
+                    
+                    cat_groups[cat_name].append({
+                        "id": li["id"],
+                        "name": li["name"],
+                        "description": li.get("category", ""),
+                        "base_price": price,
+                        "pricing_type": pricing_type,
+                        "images": [li.get("image_url")] if li.get("image_url") else [],
+                        "is_available": True,
+                        "is_veg": True,
+                        "module": "laundry",
+                        "store_id": store_id,
+                        "tenant_id": tenant_id_from_virtual,
+                        "variants": [],
+                        "addons": []
+                    })
+                
+                for cat_name, cat_items in cat_groups.items():
+                    categories.append({
+                        "id": f"laundry_cat_{cat_name.lower().replace(' ', '_')}",
+                        "name": cat_name,
+                        "description": "",
+                        "module": "laundry",
+                        "is_active": True,
+                        "items": cat_items
+                    })
+            
+            store["categories"] = categories
+            store["services"] = services
+        
+        return store
+    
+    # Regular store (food) - existing behavior
     store = await db.stores.find_one(
         {"id": store_id, "is_active": True},
         {"_id": 0}

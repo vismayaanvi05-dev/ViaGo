@@ -1,6 +1,6 @@
 """
-Sync production data from admin panel API to local MongoDB.
-This fetches REAL data from the production backend - NO fake data.
+Sync ALL production data from admin panel API to local MongoDB.
+Includes: food stores/items, grocery categories/products, laundry services/items/pricing.
 """
 import asyncio
 import json
@@ -16,7 +16,6 @@ ADMIN_EMAIL = "sree123@gmail.com"
 ADMIN_PASSWORD = "Test@123"
 
 async def sync_production_data():
-    # Connect to local MongoDB
     client = AsyncIOMotorClient(os.environ['MONGO_URL'])
     db = client[os.environ['DB_NAME']]
     
@@ -41,7 +40,7 @@ async def sync_production_data():
         print(f"Logged in as: {user_data['email']} ({user_data['role']})")
         print(f"Tenant: {tenant_data['name']} (modules: {tenant_data['active_modules']})\n")
         
-        # Step 3: Fetch all data from production
+        # Step 3: Fetch FOOD data
         stores_resp = await http.get(f"{PROD_BASE}/tenant-admin/stores", headers=headers)
         stores = stores_resp.json()
         
@@ -56,12 +55,31 @@ async def sync_production_data():
         
         me_resp = await http.get(f"{PROD_BASE}/auth/me", headers=headers)
         me_data = me_resp.json()
+        
+        # Step 4: Fetch GROCERY data
+        grocery_categories_resp = await http.get(f"{PROD_BASE}/grocery-admin/categories", headers=headers)
+        grocery_categories = grocery_categories_resp.json() if grocery_categories_resp.status_code == 200 else []
+        
+        grocery_products_resp = await http.get(f"{PROD_BASE}/grocery-admin/products", headers=headers)
+        grocery_products = grocery_products_resp.json() if grocery_products_resp.status_code == 200 else []
+        
+        # Step 5: Fetch LAUNDRY data
+        laundry_services_resp = await http.get(f"{PROD_BASE}/laundry-admin/services", headers=headers)
+        laundry_services = laundry_services_resp.json() if laundry_services_resp.status_code == 200 else []
+        
+        laundry_items_resp = await http.get(f"{PROD_BASE}/laundry-admin/items", headers=headers)
+        laundry_items = laundry_items_resp.json() if laundry_items_resp.status_code == 200 else []
+        
+        laundry_pricing_resp = await http.get(f"{PROD_BASE}/laundry-admin/pricing", headers=headers)
+        laundry_pricing = laundry_pricing_resp.json() if laundry_pricing_resp.status_code == 200 else []
     
-    # Step 4: Insert tenant
+    # ======= INSERT ALL DATA =======
+    
+    # Tenant
     await db.tenants.insert_one(tenant_data)
     print(f"Inserted tenant: {tenant_data['name']} (town: {tenant_data.get('town')})")
     
-    # Step 5: Insert user (with exact password hash from production)
+    # User
     user_doc = {
         "id": me_data["id"],
         "tenant_id": me_data["tenant_id"],
@@ -69,7 +87,7 @@ async def sync_production_data():
         "phone": me_data.get("phone", ""),
         "email": me_data["email"],
         "role": me_data["role"],
-        "password": me_data["password"],  # exact bcrypt hash from production
+        "password": me_data["password"],
         "profile_photo": me_data.get("profile_photo"),
         "status": me_data.get("status", "active"),
         "is_deleted": me_data.get("is_deleted", False),
@@ -79,44 +97,62 @@ async def sync_production_data():
     await db.users.insert_one(user_doc)
     print(f"Inserted user: {user_doc['email']} ({user_doc['role']})")
     
-    # Step 6: Insert stores
+    # Food Stores
     for store in stores:
         await db.stores.insert_one(store)
         print(f"Inserted store: {store['name']} ({store['store_type']}) - {store['city']}")
     
-    # Step 7: Insert categories
+    # Food Categories
     for cat in categories:
         await db.categories.insert_one(cat)
-        print(f"Inserted category: {cat['name']} (module: {cat['module']})")
+        print(f"Inserted food category: {cat['name']}")
     
-    # Step 8: Insert items
+    # Food Items
     for item in items:
         await db.items.insert_one(item)
-        print(f"Inserted item: {item['name']} - Rs.{item['base_price']} (module: {item['module']})")
+        print(f"Inserted food item: {item['name']} - Rs.{item['base_price']}")
     
-    # Step 9: Insert tenant settings
+    # Tenant Settings
     await db.tenant_settings.insert_one(settings)
-    print(f"Inserted tenant settings (tax: {settings.get('tax_percentage')}%)")
+    print(f"Inserted tenant settings")
+    
+    # Grocery Categories
+    for cat in grocery_categories:
+        await db.grocery_categories.insert_one(cat)
+        print(f"Inserted grocery category: {cat['name']}")
+    
+    # Grocery Products
+    for prod in grocery_products:
+        await db.grocery_products.insert_one(prod)
+        print(f"Inserted grocery product: {prod['name']} - Rs.{prod.get('selling_price', 0)}")
+    
+    # Laundry Services
+    for svc in laundry_services:
+        await db.laundry_services.insert_one(svc)
+        print(f"Inserted laundry service: {svc['name']}")
+    
+    # Laundry Items
+    for item in laundry_items:
+        await db.laundry_items.insert_one(item)
+        print(f"Inserted laundry item: {item['name']} ({item.get('category', '')})")
+    
+    # Laundry Pricing
+    for price in laundry_pricing:
+        await db.laundry_pricing.insert_one(price)
+        print(f"Inserted laundry pricing: {price['pricing_type']} - Rs.{price['price']}")
     
     # Summary
     print(f"\n=== SYNC COMPLETE ===")
     print(f"Tenants: 1")
     print(f"Users: 1")
-    print(f"Stores: {len(stores)}")
-    print(f"Categories: {len(categories)}")
-    print(f"Items: {len(items)}")
-    print(f"Settings: 1")
-    
-    # Verification
-    print(f"\n=== VERIFICATION ===")
-    user_check = await db.users.find_one({"email": ADMIN_EMAIL}, {"_id": 0, "password": 0})
-    print(f"User found: {user_check['email']} ({user_check['role']})")
-    tenant_check = await db.tenants.find_one({"id": tenant_data['id']}, {"_id": 0})
-    print(f"Tenant found: {tenant_check['name']} (town: {tenant_check.get('town')})")
-    store_count = await db.stores.count_documents({})
-    print(f"Stores: {store_count}")
-    item_count = await db.items.count_documents({})
-    print(f"Items: {item_count}")
+    print(f"Food Stores: {len(stores)}")
+    print(f"Food Categories: {len(categories)}")
+    print(f"Food Items: {len(items)}")
+    print(f"Grocery Categories: {len(grocery_categories)}")
+    print(f"Grocery Products: {len(grocery_products)}")
+    print(f"Laundry Services: {len(laundry_services)}")
+    print(f"Laundry Items: {len(laundry_items)}")
+    print(f"Laundry Pricing: {len(laundry_pricing)}")
     
     client.close()
 
