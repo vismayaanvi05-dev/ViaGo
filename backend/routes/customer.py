@@ -1019,6 +1019,117 @@ async def delete_address(
     
     return {"success": True, "message": "Address deleted"}
 
+# ==================== GROCERY BROWSE (No Store) ====================
+
+@router.get("/grocery")
+async def browse_grocery(
+    city: str = None,
+    search: str = None,
+    lat: float = None,
+    lng: float = None,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """
+    Browse grocery categories and products directly (no store needed).
+    Returns all grocery data for matching tenants in the customer's city.
+    """
+    from utils.helpers import get_tenant_ids_by_location
+    
+    matching_tenant_ids = await get_tenant_ids_by_location(db, lat=lat, lng=lng, city=city)
+    
+    if not matching_tenant_ids:
+        return {"categories": [], "products": []}
+    
+    # Filter to tenants with grocery module
+    tenants = await db.tenants.find(
+        {"id": {"$in": matching_tenant_ids}, "status": "active"},
+        {"_id": 0}
+    ).to_list(100)
+    tenant_ids = [t["id"] for t in tenants if "grocery" in t.get("active_modules", [])]
+    
+    if not tenant_ids:
+        return {"categories": [], "products": []}
+    
+    # Get grocery categories
+    cat_query = {"tenant_id": {"$in": tenant_ids}, "is_active": True}
+    categories = await db.grocery_categories.find(cat_query, {"_id": 0}).sort("sort_order", 1).to_list(100)
+    
+    # Get grocery products
+    prod_query = {"tenant_id": {"$in": tenant_ids}, "is_available": True, "is_deleted": {"$ne": True}}
+    if search:
+        prod_query["name"] = {"$regex": search, "$options": "i"}
+    
+    products = await db.grocery_products.find(prod_query, {"_id": 0}).to_list(500)
+    
+    # Group products by category
+    for cat in categories:
+        cat["products"] = [p for p in products if p.get("category_id") == cat["id"]]
+    
+    return {"categories": categories, "products": products}
+
+
+@router.get("/laundry")
+async def browse_laundry(
+    city: str = None,
+    search: str = None,
+    lat: float = None,
+    lng: float = None,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """
+    Browse laundry services and items directly (no store needed).
+    Returns all laundry data for matching tenants in the customer's city.
+    """
+    from utils.helpers import get_tenant_ids_by_location
+    
+    matching_tenant_ids = await get_tenant_ids_by_location(db, lat=lat, lng=lng, city=city)
+    
+    if not matching_tenant_ids:
+        return {"services": [], "items": [], "pricing": []}
+    
+    tenants = await db.tenants.find(
+        {"id": {"$in": matching_tenant_ids}, "status": "active"},
+        {"_id": 0}
+    ).to_list(100)
+    tenant_ids = [t["id"] for t in tenants if "laundry" in t.get("active_modules", [])]
+    
+    if not tenant_ids:
+        return {"services": [], "items": [], "pricing": []}
+    
+    # Get laundry services
+    services = await db.laundry_services.find(
+        {"tenant_id": {"$in": tenant_ids}, "is_active": True}, {"_id": 0}
+    ).sort("sort_order", 1).to_list(100)
+    
+    # Get laundry items
+    item_query = {"tenant_id": {"$in": tenant_ids}, "is_active": True}
+    if search:
+        item_query["name"] = {"$regex": search, "$options": "i"}
+    items = await db.laundry_items.find(item_query, {"_id": 0}).sort("sort_order", 1).to_list(200)
+    
+    # Get pricing
+    pricing = await db.laundry_pricing.find(
+        {"tenant_id": {"$in": tenant_ids}, "is_active": True}, {"_id": 0}
+    ).to_list(500)
+    
+    # Attach pricing to items
+    for item in items:
+        item["pricing"] = [p for p in pricing if p.get("item_id") == item["id"]]
+        if item["pricing"]:
+            item["price"] = item["pricing"][0].get("price", 0)
+            item["pricing_type"] = item["pricing"][0].get("pricing_type", "per_item")
+        else:
+            item["price"] = 0
+            item["pricing_type"] = "per_item"
+    
+    # Group items by service
+    for svc in services:
+        svc_pricing = [p for p in pricing if p.get("service_id") == svc["id"]]
+        svc_item_ids = set(p.get("item_id") for p in svc_pricing)
+        svc["items"] = [i for i in items if i["id"] in svc_item_ids]
+    
+    return {"services": services, "items": items, "pricing": pricing}
+
 # ==================== BROWSE RESTAURANTS ====================
 
 @router.get("/restaurants")

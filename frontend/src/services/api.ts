@@ -87,6 +87,14 @@ export const customerAPI = {
   getDeliverySlots: (storeId: string) => apiClient.get(`/customer/delivery-slots?store_id=${storeId}`),
   // Laundry Services
   getLaundryServices: (storeId: string) => apiClient.get(`/customer/laundry-services?store_id=${storeId}`),
+  
+  // Direct Grocery Browse (no store needed)
+  getGrocery: (city?: string, search?: string, lat?: number, lng?: number) =>
+    apiClient.get('/customer/grocery', { params: { city, search, lat, lng } }),
+  
+  // Direct Laundry Browse (no store needed)
+  getLaundry: (city?: string, search?: string, lat?: number, lng?: number) =>
+    apiClient.get('/customer/laundry', { params: { city, search, lat, lng } }),
 };
 
 // Driver APIs (Password-based auth - credentials set by admin)
