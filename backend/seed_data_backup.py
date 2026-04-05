@@ -208,7 +208,42 @@ async def seed_database():
             "is_active": True,
             "is_accepting_orders": True,
             "avg_rating": 4.3,
-
+            "total_ratings": 180,
+            "preparation_time_minutes": 20,
+            "cuisine_types": ["American", "Fast Food"],
+            "image_url": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "tenant_id": tenant_id,
+            "name": "Spice Garden",
+            "type": "restaurant",
+            "module": "food",
+            "description": "Authentic Indian cuisine with traditional spices",
+            "address": "789 Spice Lane, South",
+            "city": "Mumbai",
+            "state": "Maharashtra",
+            "pincode": "400003",
+            "lat": 19.1136,
+            "lng": 72.9083,
+            "phone": "9876543213",
+            "email": "hello@spicegarden.com",
+            "is_active": True,
+            "is_accepting_orders": True,
+            "avg_rating": 4.7,
+            "total_ratings": 320,
+            "preparation_time_minutes": 35,
+            "cuisine_types": ["Indian", "North Indian", "South Indian"],
+            "image_url": "https://images.unsplash.com/photo-1585937421612-70a008356fbe",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    await db.stores.insert_many(stores)
+    print(f"Created {len(stores)} stores/restaurants")
+    
     # Create Vendor Admins for each store (Username/Password)
     vendor_admins = []
     vendor_passwords = ["pizza123", "burger123", "spice123"]
