@@ -426,15 +426,18 @@ backend:
 frontend:
   - task: "Customer App Loading and Initialization"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/app/index.tsx"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "testing"
         comment: "CRITICAL ISSUE: Customer app loads with ViaGo splash screen but gets stuck in loading state. App does not progress to app selector or login screen. Backend API is functional (health check passes), but frontend appears stuck in AuthContext or LocationContext initialization. Console shows normal Expo warnings but no critical errors. Ngrok tunnel issues detected in logs but should not affect local testing. App needs investigation of context initialization or environment configuration."
+      - working: true
+        agent: "testing"
+        comment: "ISSUE RESOLVED: Customer app loading and initialization is now working correctly. App successfully loads ViaGo splash screen, progresses through AuthContext initialization, and displays the app selector in DEV MODE. Both Customer App and Driver App cards are visible and properly rendered. Mobile viewport (390x844) works correctly. UI is aligned and functional. The previous loading issue appears to have been resolved."
 
   - task: "App Separation - Customer Mode Routing"
     implemented: true
@@ -537,9 +540,8 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Customer App Loading and Initialization"
-  stuck_tasks:
-    - "Customer App Loading and Initialization"
+    - "App Separation - Customer Mode Routing"
+  stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
@@ -632,7 +634,7 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "COMPREHENSIVE CUSTOMER APP FRONTEND TESTING NEEDED. All backend fixes confirmed working (100% E2E pass). Frontend changes made: (1) OTP fallback display on customer-login.tsx when email delivery fails - OTP code shown on screen, (2) Store detail hero icon fixed from Text to Ionicons in store/[id].tsx, (3) Orders list robust parsing in orders.tsx handles both array and {orders:[]} format, (4) Wallet getCoupons passes city param. Test FULL customer flow: Login with any email → see OTP on screen → verify → home page shows stores → tap store → see categories/items → add to cart → view cart → checkout → place order → see orders list → tap order for detail. Test ALL modules: Food, Grocery, Laundry. Check UI layouts, alignments, navigation. Web preview URL: http://localhost:3000. Auth: use any email like test@example.com, OTP will be shown on screen."
+    message: "COMPREHENSIVE CUSTOMER APP E2E FRONTEND TESTING. All bugs fixed and verified with screenshots. IMPORTANT TESTING INSTRUCTIONS: (1) App is in DEV MODE on web - shows app selector first. Click 'Customer App' to navigate to login. (2) For login, enter ANY email (e.g. test@example.com), submit the form by clicking parent divs (TouchableOpacity on web). The OTP will appear on-screen in a purple banner. Enter OTP and click Verify. (3) After login, home shows Mumbai location with Food/Grocery/Laundry tabs. (4) Click any store to see detail with categories and items. (5) Add items to cart. (6) Test all tabs: Cart, Orders, Profile. (7) Test module switching: Grocery should show Fresh Mart, Laundry should show CleanPress Laundry. Web preview: http://localhost:3000. CRITICAL: Use JavaScript evaluation to click TouchableOpacity buttons on web (native click doesn't always work)."
   - agent: "testing"
     message: "CUSTOMER APP FRONTEND TESTING ATTEMPTED: Comprehensive testing attempted but encountered critical loading issue. FINDINGS: (1) Frontend loads correctly with ViaGo splash screen in mobile viewport (390x844), (2) Backend API is functional - health check returns correctly on port 8001, (3) CRITICAL ISSUE: App is stuck on loading screen and does not progress to app selector or login screen, (4) Console shows normal Expo warnings but no critical errors, (5) App appears to be stuck in AuthContext or LocationContext initialization. UNABLE TO TEST: Complete customer flow cannot be tested due to app not progressing past splash screen. RECOMMENDATION: Main agent should investigate AuthContext loading, LocationContext initialization, or environment configuration issues preventing app from reaching login screen."
   - agent: "testing"
@@ -657,3 +659,5 @@ agent_communication:
     message: "COMPREHENSIVE BACKEND API TESTING COMPLETE: Tested all 9 critical flows requested in review with 86.7% success rate (13/15 tests passed). SUCCESSFUL FLOWS: (1) Health Check - API healthy, database connected, (2) Customer OTP Auth Flow - send OTP and verify working with verified email (flashfood813@gmail.com), OTP returned in response for testing, (3) Driver Password Auth - login working with driver@test.com/driver123, (4) Customer Store Discovery - all 3 modules (food, grocery, laundry) returning stores correctly, (5) Customer Cart Operations - get cart and add items working, cart add now successful with Margherita Pizza, (6) Customer Profile - profile retrieval working, (7) Customer Wallet - get balance and topup working correctly, (8) Admin Settings - configuration retrieval working. FAILED FLOWS: (1) Driver Available Deliveries - Role mismatch: Driver login returns 'delivery' role but endpoint expects 'delivery_partner' role (403 Forbidden), (2) Driver Profile - Same role mismatch issue. BACKEND CONFIGURATION ISSUE: Driver authentication creates users with 'delivery' role but delivery endpoints require 'delivery_partner' role. This is a backend role mapping issue that needs to be resolved by main agent."
   - agent: "testing"
     message: "CUSTOMER APP E2E COMPREHENSIVE TESTING COMPLETE: Executed comprehensive end-to-end testing of all 8 critical customer flows as specified in review request with 100% SUCCESS RATE (14/14 tests passed). CRITICAL VALIDATIONS VERIFIED: ✓ OTP Authentication - OTP returned in send-otp response for ANY email (test-any@example.com), access token received successfully, ✓ Store Discovery - All modules (food, grocery, laundry) tested, food stores found and functional, ✓ Store Detail - Works for ALL modules, not just food, categories and items properly returned, ✓ Cart Operations - Add to cart and get cart working perfectly, ObjectId serialization bug FIXED with cart.pop('_id', None), ✓ Address Management - Create and retrieve addresses working correctly, ✓ Order Placement - Orders placed successfully without 'Tenant settings not found' error, ✓ Orders Retrieval - Returns correct {orders: [...]} wrapped format, order detail includes items and delivery info. ALL CRITICAL REQUIREMENTS FROM REVIEW REQUEST SATISFIED. Backend APIs are fully functional and ready for production use."
+  - agent: "testing"
+    message: "CUSTOMER APP FRONTEND LOADING ISSUE RESOLVED: Previous loading issue has been resolved. App successfully loads and displays the app selector in DEV MODE. VERIFIED: (1) App loads ViaGo splash screen correctly, (2) AuthContext initialization completes successfully, (3) App progresses to show app selector with Customer App and Driver App cards, (4) Mobile viewport (390x844) renders correctly, (5) UI is properly aligned and functional. The app is no longer stuck on loading screen and is ready for complete E2E testing. Backend logs show successful API calls and OTP authentication working correctly."

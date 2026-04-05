@@ -1,600 +1,262 @@
 """
-Seed script to populate database with test data for HyperServe platform
-This creates:
-- Super Admin user
-- Tenant with Tenant Admin
-- Multiple stores (restaurants)
-- Categories and Items (food menu)
-- Test customer users
-- Test delivery partner
+Comprehensive seed script for ViaGo - creates tenants, stores, categories, items for all modules.
+Run: cd /app/backend && python seed_data.py
 """
-
 import asyncio
-from motor.motor_asyncio import AsyncIOMotorClient
-from models.user import User, UserCreate
-from models.tenant import Tenant, TenantCreate, TenantSettings
-from models.store import Store, StoreCreate, Category, CategoryCreate
-from models.item import Item, ItemCreate
-from models.monetization import SubscriptionPlan, TenantSubscription
-from datetime import datetime, timezone
 import os
-from dotenv import load_dotenv
-from pathlib import Path
 import uuid
+from datetime import datetime, timezone
+from motor.motor_asyncio import AsyncIOMotorClient
+from dotenv import load_dotenv
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv()
 
-async def seed_database():
-    # Connect to MongoDB
-    mongo_url = os.environ['MONGO_URL']
-    client = AsyncIOMotorClient(mongo_url)
-    db = client[os.environ['DB_NAME']]
-    
-    print("🌱 Starting database seeding...")
-    
-    # Clear existing data (optional - comment out if you want to keep existing data)
-    collections = await db.list_collection_names()
-    for collection in collections:
-        await db[collection].delete_many({})
-    print("🗑️  Cleared existing data")
-    
-    # 1. Create Super Admin
-    super_admin_id = str(uuid.uuid4())
-    super_admin = {
-        "id": super_admin_id,
-        "tenant_id": None,
-        "name": "Super Admin",
-        "phone": "9999999999",
-        "email": "superadmin@hyperserve.com",
-        "role": "super_admin",
-        "is_active": True,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
-    await db.users.insert_one(super_admin)
-    print(f"✅ Created Super Admin: {super_admin['phone']}")
-    
-    # 2. Create Subscription Plans
-    plans = [
-        {
-            "id": str(uuid.uuid4()),
-            "name": "Starter Plan",
-            "description": "Perfect for small restaurants starting out",
-            "pricing_type": "subscription",
-            "monthly_fee": 999.0,
-            "commission_percentage": 0.0,
-            "features": ["Up to 100 orders/month", "Basic analytics", "Email support"],
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "name": "Growth Plan",
-            "description": "For growing businesses",
-            "pricing_type": "commission",
-            "monthly_fee": 0.0,
-            "commission_percentage": 15.0,
-            "features": ["Unlimited orders", "Advanced analytics", "Priority support"],
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "name": "Enterprise Plan",
-            "description": "Best for large chains",
-            "pricing_type": "hybrid",
-            "monthly_fee": 4999.0,
-            "commission_percentage": 8.0,
-            "features": ["Unlimited orders", "Multi-store management", "Dedicated account manager", "Custom integrations"],
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-    ]
-    await db.subscription_plans.insert_many(plans)
-    print(f"✅ Created {len(plans)} subscription plans")
-    
-    # 3. Create Tenant
-    tenant_id = str(uuid.uuid4())
-    tenant = {
-        "id": tenant_id,
-        "name": "Foodie Express",
-        "business_type": "multi_vendor",
-        "active_modules": ["food"],
-        "contact_email": "contact@foodieexpress.com",
-        "contact_phone": "9876543210",
-        "is_active": True,
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+
+def uid():
+    return str(uuid.uuid4())
+
+async def seed():
+    client = AsyncIOMotorClient(MONGO_URL)
+    db = client.hyperserve_db
+
+    # ── Tenant 1: Mumbai ──
+    t1_id = uid()
+    t1 = {
+        "id": t1_id, "name": "ViaGo Mumbai", "business_type": "multi_vendor",
+        "active_modules": ["food", "grocery", "laundry"],
+        "contact_email": "mumbai@viago.in", "contact_phone": "9876543210",
+        "town": "Mumbai", "city": "Mumbai", "state": "Maharashtra",
+        "lat": 19.076, "lng": 72.8777,
+        "is_active": True, "status": "active",
         "onboarding_completed": True,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
     }
-    await db.tenants.insert_one(tenant)
-    print(f"✅ Created Tenant: {tenant['name']}")
-    
-    # 4. Create Tenant Subscription (assign Growth plan - commission based)
-    tenant_subscription = {
-        "id": str(uuid.uuid4()),
-        "tenant_id": tenant_id,
-        "plan_id": plans[1]["id"],  # Growth Plan
-        "pricing_model": "commission",
-        "monthly_fee": 0.0,
-        "commission_percentage": 15.0,
-        "status": "active",
-        "start_date": datetime.now(timezone.utc).isoformat(),
-        "end_date": None,
-        "created_at": datetime.now(timezone.utc).isoformat()
+
+    # ── Tenant 2: Bengaluru ──
+    t2_id = uid()
+    t2 = {
+        "id": t2_id, "name": "ViaGo Bengaluru", "business_type": "multi_vendor",
+        "active_modules": ["food", "grocery", "laundry"],
+        "contact_email": "bengaluru@viago.in", "contact_phone": "9876543211",
+        "town": "Bengaluru", "city": "Bengaluru", "state": "Karnataka",
+        "lat": 12.9716, "lng": 77.5946,
+        "is_active": True, "status": "active",
+        "onboarding_completed": True,
+        "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
     }
-    await db.tenant_subscriptions.insert_one(tenant_subscription)
-    print("✅ Created Tenant Subscription")
-    
-    # 5. Create Tenant Settings (with admin markup, tax, delivery charges)
-    tenant_settings = {
-        "id": str(uuid.uuid4()),
-        "tenant_id": tenant_id,
-        "delivery_charge_type": "distance_based",
-        "flat_delivery_charge": 0.0,
-        "delivery_charge_per_km": 10.0,
-        "free_delivery_above": 500.0,
-        "tax_enabled": True,
-        "tax_percentage": 5.0,
-        "default_admin_markup_percentage": 10.0,
-        "currency": "INR",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
+
+    # ── Tenant Settings ──
+    ts1 = {
+        "id": uid(), "tenant_id": t1_id,
+        "delivery_charge_type": "flat", "flat_delivery_charge": 30,
+        "delivery_charge_per_km": 0, "free_delivery_above": 500,
+        "tax_enabled": True, "tax_percentage": 5,
+        "min_order_amount": 99, "max_delivery_distance_km": 15,
     }
-    await db.tenant_settings.insert_one(tenant_settings)
-    print("✅ Created Tenant Settings")
-    
-    # 6. Create Tenant Admin
-    tenant_admin_id = str(uuid.uuid4())
-    tenant_admin = {
-        "id": tenant_admin_id,
-        "tenant_id": tenant_id,
-        "name": "Tenant Admin",
-        "phone": "8888888888",
-        "email": "admin@foodieexpress.com",
-        "role": "tenant_admin",
-        "is_active": True,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
+    ts2 = {
+        "id": uid(), "tenant_id": t2_id,
+        "delivery_charge_type": "flat", "flat_delivery_charge": 25,
+        "delivery_charge_per_km": 0, "free_delivery_above": 400,
+        "tax_enabled": True, "tax_percentage": 5,
+        "min_order_amount": 79, "max_delivery_distance_km": 15,
     }
-    await db.users.insert_one(tenant_admin)
-    print(f"✅ Created Tenant Admin: {tenant_admin['phone']}")
-    
-    # 7. Create Stores (Restaurants)
-    stores = [
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "name": "Pizza Paradise",
-            "store_type": "restaurant",
-            "module": "food",
-            "description": "Best pizzas in town with authentic Italian flavors",
-            "address": "123 Main Street, Downtown",
-            "city": "Mumbai",
-            "state": "Maharashtra",
-            "pincode": "400001",
-            "lat": 19.0760,
-            "lng": 72.8777,
-            "phone": "9876543211",
-            "email": "pizza@paradise.com",
-            "is_active": True,
-            "is_accepting_orders": True,
-            "avg_rating": 4.5,
-            "total_ratings": 250,
-            "preparation_time_minutes": 30,
-            "cuisine_types": ["Italian", "Pizza"],
-            "image_url": "https://images.unsplash.com/photo-1513104890138-7c749659a591",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "name": "Burger Hub",
-            "store_type": "restaurant",
-            "module": "food",
-            "description": "Juicy burgers made with premium ingredients",
-            "address": "456 Park Avenue, Central",
-            "city": "Mumbai",
-            "state": "Maharashtra",
-            "pincode": "400002",
-            "lat": 19.0896,
-            "lng": 72.8656,
-            "phone": "9876543212",
-            "email": "info@burgerhub.com",
-            "is_active": True,
-            "is_accepting_orders": True,
-            "avg_rating": 4.3,
-            "total_ratings": 180,
-            "preparation_time_minutes": 20,
-            "cuisine_types": ["American", "Fast Food"],
-            "image_url": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "name": "Spice Garden",
-            "store_type": "restaurant",
-            "module": "food",
-            "description": "Authentic Indian cuisine with traditional spices",
-            "address": "789 Spice Lane, South",
-            "city": "Mumbai",
-            "state": "Maharashtra",
-            "pincode": "400003",
-            "lat": 19.1136,
-            "lng": 72.9083,
-            "phone": "9876543213",
-            "email": "hello@spicegarden.com",
-            "is_active": True,
-            "is_accepting_orders": True,
-            "avg_rating": 4.7,
-            "total_ratings": 320,
-            "preparation_time_minutes": 35,
-            "cuisine_types": ["Indian", "North Indian", "South Indian"],
-            "image_url": "https://images.unsplash.com/photo-1585937421612-70a008356fbe",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
-    ]
-    await db.stores.insert_many(stores)
-    print(f"✅ Created {len(stores)} stores/restaurants")
-    
-    # 8. Create Categories and Items for each store
-    
-    # Pizza Paradise Menu
-    pizza_categories = [
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[0]["id"],
-            "name": "Pizzas",
-            "description": "Our signature pizzas",
-            "module": "food",
-            "display_order": 1,
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[0]["id"],
-            "name": "Beverages",
-            "description": "Refreshing drinks",
-            "module": "food",
-            "display_order": 2,
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-    ]
-    await db.categories.insert_many(pizza_categories)
-    
-    pizza_items = [
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[0]["id"],
-            "category_id": pizza_categories[0]["id"],
-            "name": "Margherita Pizza",
-            "description": "Classic tomato, mozzarella, and basil",
-            "module": "food",
-            "type": "simple",
-            "base_price": 299.0,
-            "admin_markup_amount": 30.0,  # Admin adds ₹30 markup
-            "is_veg": True,
-            "is_available": True,
-            "is_deleted": False,
-            "image_url": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[0]["id"],
-            "category_id": pizza_categories[0]["id"],
-            "name": "Pepperoni Pizza",
-            "description": "Loaded with pepperoni and cheese",
-            "module": "food",
-            "type": "simple",
-            "base_price": 399.0,
-            "admin_markup_amount": 40.0,
-            "is_veg": False,
-            "is_available": True,
-            "is_deleted": False,
-            "image_url": "https://images.unsplash.com/photo-1628840042765-356cda07504e",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[0]["id"],
-            "category_id": pizza_categories[1]["id"],
-            "name": "Coca Cola",
-            "description": "Chilled soft drink",
-            "module": "food",
-            "type": "simple",
-            "base_price": 50.0,
-            "admin_markup_amount": 5.0,
-            "is_veg": True,
-            "is_available": True,
-            "is_deleted": False,
-            "image_url": "https://images.unsplash.com/photo-1554866585-cd94860890b7",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
-    ]
-    await db.items.insert_many(pizza_items)
-    
-    # Burger Hub Menu
-    burger_categories = [
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[1]["id"],
-            "name": "Burgers",
-            "description": "Juicy burgers",
-            "module": "food",
-            "display_order": 1,
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[1]["id"],
-            "name": "Sides",
-            "description": "Fries and more",
-            "module": "food",
-            "display_order": 2,
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-    ]
-    await db.categories.insert_many(burger_categories)
-    
-    burger_items = [
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[1]["id"],
-            "category_id": burger_categories[0]["id"],
-            "name": "Classic Beef Burger",
-            "description": "Beef patty with lettuce, tomato, and special sauce",
-            "module": "food",
-            "type": "simple",
-            "base_price": 199.0,
-            "admin_markup_amount": 20.0,
-            "is_veg": False,
-            "is_available": True,
-            "is_deleted": False,
-            "image_url": "https://images.unsplash.com/photo-1550547660-d9450f859349",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[1]["id"],
-            "category_id": burger_categories[0]["id"],
-            "name": "Veggie Burger",
-            "description": "Healthy veggie patty with fresh vegetables",
-            "module": "food",
-            "type": "simple",
-            "base_price": 149.0,
-            "admin_markup_amount": 15.0,
-            "is_veg": True,
-            "is_available": True,
-            "is_deleted": False,
-            "image_url": "https://images.unsplash.com/photo-1520072959219-c595dc870360",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[1]["id"],
-            "category_id": burger_categories[1]["id"],
-            "name": "French Fries",
-            "description": "Crispy golden fries",
-            "module": "food",
-            "type": "simple",
-            "base_price": 99.0,
-            "admin_markup_amount": 10.0,
-            "is_veg": True,
-            "is_available": True,
-            "is_deleted": False,
-            "image_url": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
-    ]
-    await db.items.insert_many(burger_items)
-    
-    # Spice Garden Menu
-    indian_categories = [
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[2]["id"],
-            "name": "Main Course",
-            "description": "Delicious main courses",
-            "module": "food",
-            "display_order": 1,
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[2]["id"],
-            "name": "Breads",
-            "description": "Freshly baked breads",
-            "module": "food",
-            "display_order": 2,
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-    ]
-    await db.categories.insert_many(indian_categories)
-    
-    indian_items = [
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[2]["id"],
-            "category_id": indian_categories[0]["id"],
-            "name": "Butter Chicken",
-            "description": "Creamy tomato-based curry with tender chicken",
-            "module": "food",
-            "type": "simple",
-            "base_price": 320.0,
-            "admin_markup_amount": 32.0,
-            "is_veg": False,
-            "is_available": True,
-            "is_deleted": False,
-            "image_url": "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[2]["id"],
-            "category_id": indian_categories[0]["id"],
-            "name": "Paneer Tikka Masala",
-            "description": "Cottage cheese in rich spiced gravy",
-            "module": "food",
-            "type": "simple",
-            "base_price": 280.0,
-            "admin_markup_amount": 28.0,
-            "is_veg": True,
-            "is_available": True,
-            "is_deleted": False,
-            "image_url": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": tenant_id,
-            "store_id": stores[2]["id"],
-            "category_id": indian_categories[1]["id"],
-            "name": "Butter Naan",
-            "description": "Soft and fluffy Indian bread",
-            "module": "food",
-            "type": "simple",
-            "base_price": 40.0,
-            "admin_markup_amount": 5.0,
-            "is_veg": True,
-            "is_available": True,
-            "is_deleted": False,
-            "image_url": "https://images.unsplash.com/photo-1619871779284-47e8f8fc34b9",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
-    ]
-    await db.items.insert_many(indian_items)
-    
-    print(f"✅ Created categories and menu items for all stores")
-    
-    # 9. Create Test Customers
-    customers = [
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": None,  # Customers are not tied to a specific tenant
-            "name": "John Doe",
-            "phone": "9111111111",
-            "email": "john@example.com",
-            "role": "customer",
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "tenant_id": None,
-            "name": "Jane Smith",
-            "phone": "9222222222",
-            "email": "jane@example.com",
-            "role": "customer",
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
-    ]
-    await db.users.insert_many(customers)
-    print(f"✅ Created {len(customers)} test customers")
-    
-    # 10. Create sample addresses for customer
-    addresses = [
-        {
-            "id": str(uuid.uuid4()),
-            "user_id": customers[0]["id"],
-            "label": "Home",
-            "address_line1": "Flat 301, Green Valley",
-            "address_line2": "Near City Mall",
-            "city": "Mumbai",
-            "state": "Maharashtra",
-            "pincode": "400001",
-            "lat": 19.0770,
-            "lng": 72.8780,
-            "is_default": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "user_id": customers[0]["id"],
-            "label": "Office",
-            "address_line1": "Tech Park, Building A",
-            "address_line2": "Floor 5",
-            "city": "Mumbai",
-            "state": "Maharashtra",
-            "pincode": "400002",
-            "lat": 19.0900,
-            "lng": 72.8660,
-            "is_default": False,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-    ]
-    await db.addresses.insert_many(addresses)
-    print(f"✅ Created {len(addresses)} addresses for customer")
-    
-    # 11. Create Delivery Partner
-    delivery_partner = {
-        "id": str(uuid.uuid4()),
-        "tenant_id": tenant_id,
-        "name": "Delivery Partner",
-        "phone": "9333333333",
-        "email": "delivery@example.com",
-        "role": "delivery",
-        "is_active": True,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
+
+    # ─────────────────── MUMBAI STORES ───────────────────
+
+    # Food Store 1
+    fs1_id = uid()
+    fs1 = {
+        "id": fs1_id, "tenant_id": t1_id, "name": "Mumbai Spice Kitchen",
+        "store_type": "restaurant", "description": "Authentic Mumbai street food & curries",
+        "phone": "9876543001", "address": "Bandra West, Mumbai",
+        "lat": 19.0596, "lng": 72.8295,
+        "is_active": True, "is_accepting_orders": True,
+        "opening_time": "09:00", "closing_time": "23:00",
+        "avg_rating": 4.5, "total_reviews": 128,
+        "delivery_radius_km": 10, "avg_prep_time_mins": 25,
+        "image_url": "", "created_at": datetime.now(timezone.utc),
     }
-    await db.users.insert_one(delivery_partner)
-    print(f"✅ Created Delivery Partner: {delivery_partner['phone']}")
-    
-    print("\n" + "="*80)
-    print("🎉 DATABASE SEEDING COMPLETED SUCCESSFULLY!")
-    print("="*80)
-    print("\n📋 TEST CREDENTIALS:")
-    print("-" * 80)
-    print(f"Super Admin     : {super_admin['phone']} (OTP in console)")
-    print(f"Tenant Admin    : {tenant_admin['phone']} (OTP in console)")
-    print(f"Customer 1      : {customers[0]['phone']} (OTP in console)")
-    print(f"Customer 2      : {customers[1]['phone']} (OTP in console)")
-    print(f"Delivery Partner: {delivery_partner['phone']} (OTP in console)")
-    print("-" * 80)
-    print(f"\n🏪 Created Tenant: {tenant['name']}")
-    print(f"🍕 Created {len(stores)} restaurants with full menus")
-    print("="*80 + "\n")
-    
-    # Close connection
+    # Food Store 2
+    fs2_id = uid()
+    fs2 = {
+        "id": fs2_id, "tenant_id": t1_id, "name": "Pizza Planet",
+        "store_type": "restaurant", "description": "Wood-fired pizzas & Italian cuisine",
+        "phone": "9876543002", "address": "Andheri, Mumbai",
+        "lat": 19.1136, "lng": 72.8697,
+        "is_active": True, "is_accepting_orders": True,
+        "opening_time": "10:00", "closing_time": "23:30",
+        "avg_rating": 4.3, "total_reviews": 95,
+        "delivery_radius_km": 8, "avg_prep_time_mins": 30,
+        "image_url": "", "created_at": datetime.now(timezone.utc),
+    }
+    # Grocery Store
+    gs1_id = uid()
+    gs1 = {
+        "id": gs1_id, "tenant_id": t1_id, "name": "Fresh Mart",
+        "store_type": "grocery", "description": "Fresh fruits, veggies & daily essentials",
+        "phone": "9876543003", "address": "Juhu, Mumbai",
+        "lat": 19.1075, "lng": 72.8263,
+        "is_active": True, "is_accepting_orders": True,
+        "opening_time": "07:00", "closing_time": "22:00",
+        "avg_rating": 4.6, "total_reviews": 210,
+        "delivery_radius_km": 10, "avg_prep_time_mins": 15,
+        "image_url": "", "created_at": datetime.now(timezone.utc),
+    }
+    # Laundry Store
+    ls1_id = uid()
+    ls1 = {
+        "id": ls1_id, "tenant_id": t1_id, "name": "CleanPress Laundry",
+        "store_type": "laundry", "description": "Professional wash, dry clean & ironing",
+        "phone": "9876543004", "address": "Powai, Mumbai",
+        "lat": 19.1176, "lng": 72.9060,
+        "is_active": True, "is_accepting_orders": True,
+        "opening_time": "08:00", "closing_time": "20:00",
+        "avg_rating": 4.4, "total_reviews": 76,
+        "delivery_radius_km": 12, "avg_prep_time_mins": 120,
+        "image_url": "", "created_at": datetime.now(timezone.utc),
+    }
+
+    # ─────────────────── BENGALURU STORES ───────────────────
+    bfs1_id = uid()
+    bfs1 = {
+        "id": bfs1_id, "tenant_id": t2_id, "name": "Dosa Corner",
+        "store_type": "restaurant", "description": "South Indian delicacies",
+        "phone": "9876543005", "address": "Koramangala, Bengaluru",
+        "lat": 12.9352, "lng": 77.6245,
+        "is_active": True, "is_accepting_orders": True,
+        "opening_time": "07:00", "closing_time": "22:00",
+        "avg_rating": 4.7, "total_reviews": 320,
+        "delivery_radius_km": 10, "avg_prep_time_mins": 20,
+        "image_url": "", "created_at": datetime.now(timezone.utc),
+    }
+    bgs1_id = uid()
+    bgs1 = {
+        "id": bgs1_id, "tenant_id": t2_id, "name": "Nature's Basket BLR",
+        "store_type": "grocery", "description": "Organic produce & premium groceries",
+        "phone": "9876543006", "address": "Indiranagar, Bengaluru",
+        "lat": 12.9784, "lng": 77.6408,
+        "is_active": True, "is_accepting_orders": True,
+        "opening_time": "06:00", "closing_time": "22:00",
+        "avg_rating": 4.5, "total_reviews": 150,
+        "delivery_radius_km": 8, "avg_prep_time_mins": 15,
+        "image_url": "", "created_at": datetime.now(timezone.utc),
+    }
+    bls1_id = uid()
+    bls1 = {
+        "id": bls1_id, "tenant_id": t2_id, "name": "QuickWash BLR",
+        "store_type": "laundry", "description": "Express laundry & dry cleaning",
+        "phone": "9876543007", "address": "HSR Layout, Bengaluru",
+        "lat": 12.9121, "lng": 77.6446,
+        "is_active": True, "is_accepting_orders": True,
+        "opening_time": "08:00", "closing_time": "20:00",
+        "avg_rating": 4.3, "total_reviews": 89,
+        "delivery_radius_km": 10, "avg_prep_time_mins": 90,
+        "image_url": "", "created_at": datetime.now(timezone.utc),
+    }
+
+    all_stores = [fs1, fs2, gs1, ls1, bfs1, bgs1, bls1]
+
+    # ─────────────────── CATEGORIES ───────────────────
+
+    cat_mc_id, cat_st_id, cat_bv_id = uid(), uid(), uid()
+    cat_pz_id, cat_ps_id = uid(), uid()
+    cat_fr_id, cat_vg_id, cat_da_id = uid(), uid(), uid()
+    cat_wf_id, cat_dc_id = uid(), uid()
+    cat_si_id, cat_sn_id = uid(), uid()
+    cat_bfr_id, cat_bvg_id = uid(), uid()
+    cat_bwf_id, cat_bir_id = uid(), uid()
+
+    categories = [
+        {"id": cat_mc_id, "store_id": fs1_id, "name": "Main Course", "module": "food", "is_active": True, "sort_order": 1},
+        {"id": cat_st_id, "store_id": fs1_id, "name": "Starters", "module": "food", "is_active": True, "sort_order": 2},
+        {"id": cat_bv_id, "store_id": fs1_id, "name": "Beverages", "module": "food", "is_active": True, "sort_order": 3},
+        {"id": cat_pz_id, "store_id": fs2_id, "name": "Pizzas", "module": "food", "is_active": True, "sort_order": 1},
+        {"id": cat_ps_id, "store_id": fs2_id, "name": "Pasta & Sides", "module": "food", "is_active": True, "sort_order": 2},
+        {"id": cat_fr_id, "store_id": gs1_id, "name": "Fruits", "module": "grocery", "is_active": True, "sort_order": 1},
+        {"id": cat_vg_id, "store_id": gs1_id, "name": "Vegetables", "module": "grocery", "is_active": True, "sort_order": 2},
+        {"id": cat_da_id, "store_id": gs1_id, "name": "Dairy & Eggs", "module": "grocery", "is_active": True, "sort_order": 3},
+        {"id": cat_wf_id, "store_id": ls1_id, "name": "Wash & Fold", "module": "laundry", "is_active": True, "sort_order": 1},
+        {"id": cat_dc_id, "store_id": ls1_id, "name": "Dry Cleaning", "module": "laundry", "is_active": True, "sort_order": 2},
+        {"id": cat_si_id, "store_id": bfs1_id, "name": "South Indian", "module": "food", "is_active": True, "sort_order": 1},
+        {"id": cat_sn_id, "store_id": bfs1_id, "name": "Snacks & Chaats", "module": "food", "is_active": True, "sort_order": 2},
+        {"id": cat_bfr_id, "store_id": bgs1_id, "name": "Organic Fruits", "module": "grocery", "is_active": True, "sort_order": 1},
+        {"id": cat_bvg_id, "store_id": bgs1_id, "name": "Fresh Vegetables", "module": "grocery", "is_active": True, "sort_order": 2},
+        {"id": cat_bwf_id, "store_id": bls1_id, "name": "Wash & Iron", "module": "laundry", "is_active": True, "sort_order": 1},
+        {"id": cat_bir_id, "store_id": bls1_id, "name": "Premium Dry Clean", "module": "laundry", "is_active": True, "sort_order": 2},
+    ]
+
+    items = [
+        {"id": uid(), "store_id": fs1_id, "category_id": cat_mc_id, "name": "Butter Chicken", "description": "Creamy tomato-based chicken curry", "price": 280, "is_available": True, "is_veg": False, "module": "food"},
+        {"id": uid(), "store_id": fs1_id, "category_id": cat_mc_id, "name": "Paneer Tikka Masala", "description": "Grilled paneer in spiced gravy", "price": 240, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": fs1_id, "category_id": cat_mc_id, "name": "Dal Makhani", "description": "Slow-cooked black lentils", "price": 180, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": fs1_id, "category_id": cat_st_id, "name": "Chicken Tikka", "description": "Charcoal grilled chicken", "price": 220, "is_available": True, "is_veg": False, "module": "food"},
+        {"id": uid(), "store_id": fs1_id, "category_id": cat_st_id, "name": "Paneer 65", "description": "Spicy fried paneer cubes", "price": 190, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": fs1_id, "category_id": cat_bv_id, "name": "Mango Lassi", "description": "Sweet mango yogurt drink", "price": 90, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": fs1_id, "category_id": cat_bv_id, "name": "Masala Chai", "description": "Traditional Indian spiced tea", "price": 50, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": fs2_id, "category_id": cat_pz_id, "name": "Margherita Pizza", "description": "Classic tomato, mozzarella & basil", "price": 299, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": fs2_id, "category_id": cat_pz_id, "name": "Pepperoni Pizza", "description": "Loaded with pepperoni & cheese", "price": 399, "is_available": True, "is_veg": False, "module": "food"},
+        {"id": uid(), "store_id": fs2_id, "category_id": cat_pz_id, "name": "Farm Fresh Pizza", "description": "Bell peppers, mushrooms, olives, onions", "price": 349, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": fs2_id, "category_id": cat_ps_id, "name": "Penne Arrabbiata", "description": "Penne in spicy tomato sauce", "price": 249, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": fs2_id, "category_id": cat_ps_id, "name": "Garlic Bread", "description": "Toasted garlic bread with cheese", "price": 129, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": gs1_id, "category_id": cat_fr_id, "name": "Alphonso Mangoes", "description": "Premium Ratnagiri mangoes - 1kg", "price": 450, "is_available": True, "is_veg": True, "module": "grocery", "unit": "1 kg"},
+        {"id": uid(), "store_id": gs1_id, "category_id": cat_fr_id, "name": "Bananas", "description": "Fresh yellow bananas - 1 dozen", "price": 60, "is_available": True, "is_veg": True, "module": "grocery", "unit": "1 dozen"},
+        {"id": uid(), "store_id": gs1_id, "category_id": cat_fr_id, "name": "Apples", "description": "Kashmir apples - 1kg", "price": 180, "is_available": True, "is_veg": True, "module": "grocery", "unit": "1 kg"},
+        {"id": uid(), "store_id": gs1_id, "category_id": cat_vg_id, "name": "Tomatoes", "description": "Farm fresh tomatoes - 1kg", "price": 40, "is_available": True, "is_veg": True, "module": "grocery", "unit": "1 kg"},
+        {"id": uid(), "store_id": gs1_id, "category_id": cat_vg_id, "name": "Onions", "description": "Red onions - 1kg", "price": 35, "is_available": True, "is_veg": True, "module": "grocery", "unit": "1 kg"},
+        {"id": uid(), "store_id": gs1_id, "category_id": cat_vg_id, "name": "Potatoes", "description": "Fresh potatoes - 1kg", "price": 30, "is_available": True, "is_veg": True, "module": "grocery", "unit": "1 kg"},
+        {"id": uid(), "store_id": gs1_id, "category_id": cat_da_id, "name": "Amul Milk (1L)", "description": "Full cream toned milk", "price": 65, "is_available": True, "is_veg": True, "module": "grocery", "unit": "1 L"},
+        {"id": uid(), "store_id": gs1_id, "category_id": cat_da_id, "name": "Farm Eggs (6 pcs)", "description": "Free-range eggs pack of 6", "price": 55, "is_available": True, "is_veg": False, "module": "grocery", "unit": "6 pcs"},
+        {"id": uid(), "store_id": gs1_id, "category_id": cat_da_id, "name": "Paneer (200g)", "description": "Fresh cottage cheese block", "price": 85, "is_available": True, "is_veg": True, "module": "grocery", "unit": "200g"},
+        {"id": uid(), "store_id": ls1_id, "category_id": cat_wf_id, "name": "Regular Wash & Fold", "description": "Standard wash, dry and fold per kg", "price": 60, "is_available": True, "is_veg": True, "module": "laundry", "unit": "per kg"},
+        {"id": uid(), "store_id": ls1_id, "category_id": cat_wf_id, "name": "Express Wash & Fold", "description": "Same-day wash and fold per kg", "price": 100, "is_available": True, "is_veg": True, "module": "laundry", "unit": "per kg"},
+        {"id": uid(), "store_id": ls1_id, "category_id": cat_dc_id, "name": "Suit Dry Clean", "description": "Professional suit dry cleaning", "price": 350, "is_available": True, "is_veg": True, "module": "laundry", "unit": "per piece"},
+        {"id": uid(), "store_id": ls1_id, "category_id": cat_dc_id, "name": "Saree Dry Clean", "description": "Delicate saree dry cleaning", "price": 250, "is_available": True, "is_veg": True, "module": "laundry", "unit": "per piece"},
+        {"id": uid(), "store_id": ls1_id, "category_id": cat_dc_id, "name": "Jacket Dry Clean", "description": "Jacket / blazer dry cleaning", "price": 300, "is_available": True, "is_veg": True, "module": "laundry", "unit": "per piece"},
+        {"id": uid(), "store_id": bfs1_id, "category_id": cat_si_id, "name": "Masala Dosa", "description": "Crispy dosa with potato filling", "price": 80, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": bfs1_id, "category_id": cat_si_id, "name": "Idli Sambar (4 pcs)", "description": "Soft idli with sambar & chutney", "price": 60, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": bfs1_id, "category_id": cat_si_id, "name": "Rava Dosa", "description": "Crispy semolina crepe", "price": 90, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": bfs1_id, "category_id": cat_sn_id, "name": "Pani Puri (6 pcs)", "description": "Crispy puris with tangy water", "price": 50, "is_available": True, "is_veg": True, "module": "food"},
+        {"id": uid(), "store_id": bgs1_id, "category_id": cat_bfr_id, "name": "Organic Mangoes", "description": "Organic alphonso - 1kg", "price": 500, "is_available": True, "is_veg": True, "module": "grocery", "unit": "1 kg"},
+        {"id": uid(), "store_id": bgs1_id, "category_id": cat_bfr_id, "name": "Dragon Fruit", "description": "Imported dragon fruit", "price": 120, "is_available": True, "is_veg": True, "module": "grocery", "unit": "1 pc"},
+        {"id": uid(), "store_id": bgs1_id, "category_id": cat_bvg_id, "name": "Baby Spinach", "description": "Organic baby spinach - 200g", "price": 60, "is_available": True, "is_veg": True, "module": "grocery", "unit": "200g"},
+        {"id": uid(), "store_id": bgs1_id, "category_id": cat_bvg_id, "name": "Avocado", "description": "Imported Hass avocado", "price": 150, "is_available": True, "is_veg": True, "module": "grocery", "unit": "1 pc"},
+        {"id": uid(), "store_id": bls1_id, "category_id": cat_bwf_id, "name": "Wash & Iron", "description": "Standard wash and iron per kg", "price": 50, "is_available": True, "is_veg": True, "module": "laundry", "unit": "per kg"},
+        {"id": uid(), "store_id": bls1_id, "category_id": cat_bwf_id, "name": "Steam Iron Only", "description": "Steam press per piece", "price": 20, "is_available": True, "is_veg": True, "module": "laundry", "unit": "per piece"},
+        {"id": uid(), "store_id": bls1_id, "category_id": cat_bir_id, "name": "Silk Saree Clean", "description": "Premium silk saree cleaning", "price": 400, "is_available": True, "is_veg": True, "module": "laundry", "unit": "per piece"},
+    ]
+
+    # ─────────────────── WRITE TO DB ───────────────────
+    for col in ["tenants", "stores", "categories", "items", "tenant_settings", "carts"]:
+        await db[col].delete_many({})
+    print("Cleared existing data")
+
+    await db.tenants.insert_many([t1, t2])
+    print(f"Inserted 2 tenants (Mumbai + Bengaluru)")
+
+    await db.tenant_settings.insert_many([ts1, ts2])
+    print(f"Inserted 2 tenant settings")
+
+    await db.stores.insert_many(all_stores)
+    print(f"Inserted {len(all_stores)} stores")
+
+    await db.categories.insert_many(categories)
+    print(f"Inserted {len(categories)} categories")
+
+    await db.items.insert_many(items)
+    print(f"Inserted {len(items)} items")
+
+    print("\n--- Verification ---")
+    for t in [t1, t2]:
+        stores = await db.stores.find({"tenant_id": t["id"]}).to_list(100)
+        print(f"{t['name']} ({t['town']}): {len(stores)} stores")
+        for s in stores:
+            cats = await db.categories.find({"store_id": s["id"]}).to_list(100)
+            item_count = await db.items.count_documents({"store_id": s["id"]})
+            print(f"  - {s['name']} ({s['store_type']}): {len(cats)} cats, {item_count} items")
+
+    print("\nSeed complete!")
     client.close()
 
 if __name__ == "__main__":
-    asyncio.run(seed_database())
+    asyncio.run(seed())

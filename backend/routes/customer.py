@@ -160,20 +160,12 @@ async def discover_stores(
             "message": "No services available in your area yet"
         }
     
-    # Build query
+    # Build query - filter by matched tenant IDs (tenant's city already verified)
     query = {
         "is_active": True,
         "is_accepting_orders": True,
         "tenant_id": {"$in": matching_tenant_ids}
     }
-    
-    # Filter stores by matching city/town (exact match with customer's location)
-    match_city = city or town
-    if match_city:
-        query["$or"] = [
-            {"city": {"$regex": f"^{match_city}$", "$options": "i"}},
-            {"town": {"$regex": f"^{match_city}$", "$options": "i"}},
-        ]
     
     # Filter by module
     if module:
@@ -446,7 +438,7 @@ async def add_to_cart(
             "item_id": cart_item["item_id"],
             "item_name": item["name"],
             "quantity": cart_item.get("quantity", 1),
-            "unit_price": item["base_price"],
+            "unit_price": item.get("base_price", item.get("price", 0)),
             "variant_id": cart_item.get("variant_id"),
             "add_ons": cart_item.get("add_ons", []),
             "added_at": datetime.utcnow().isoformat()
@@ -1082,7 +1074,7 @@ async def get_restaurant_details(
     # Get items for each category
     for category in categories:
         items = await db.items.find(
-            {"category_id": category["id"], "is_available": True, "is_deleted": False},
+            {"category_id": category["id"], "is_available": True, "is_deleted": {"$ne": True}},
             {"_id": 0}
         ).to_list(100)
         
