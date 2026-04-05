@@ -8,6 +8,9 @@ export const deliveryAPI = {
   verifyOTP: (email, otp, name) =>
     apiClient.post('/auth/verify-otp', { email, otp, role: 'delivery_partner', name }),
 
+  loginWithPassword: (email, password) =>
+    apiClient.post('/auth/login', { username: email, password }),
+
   // Profile
   getProfile: () =>
     apiClient.get('/delivery/profile'),

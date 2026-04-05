@@ -55,6 +55,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithPassword = async (email, password) => {
+    try {
+      const response = await deliveryAPI.loginWithPassword(email, password);
+      const { access_token, user: userData } = response.data;
+      
+      await AsyncStorage.setItem('authToken', access_token);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      
+      setToken(access_token);
+      setUser(userData);
+      
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.response?.data?.detail || 'Invalid credentials' };
+    }
+  };
+
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('authToken');
@@ -87,6 +104,7 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated: !!token,
         sendOTP,
         verifyOTP,
+        loginWithPassword,
         logout,
         updateUser,
       }}

@@ -13,14 +13,15 @@ const DeliveryPartners = () => {
   const [loading, setLoading] = useState(true);
   const [partners, setPartners] = useState([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editingPartner, setEditingPartner] = useState(null);
   
   const toast = (message) => {
-    // Simple toast notification - non-blocking
     const toastMessage = message.description || message.title;
     console.log('Toast:', toastMessage);
     
-    // Create a simple toast element
     const toastEl = document.createElement('div');
     toastEl.className = 'fixed top-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm';
     toastEl.innerHTML = `
@@ -33,7 +34,6 @@ const DeliveryPartners = () => {
     `;
     document.body.appendChild(toastEl);
     
-    // Remove after 3 seconds
     setTimeout(() => {
       toastEl.remove();
     }, 3000);
@@ -81,10 +81,7 @@ const DeliveryPartners = () => {
     try {
       const response = await tenantAdminAPI.createDeliveryPartner(newPartner);
       
-      // Close dialog immediately
       setIsCreateDialogOpen(false);
-      
-      // Reset form
       setNewPartner({
         name: '',
         email: '',
@@ -94,13 +91,11 @@ const DeliveryPartners = () => {
         vehicle_number: '',
       });
       
-      // Show success toast
       toast({
         title: "Success",
         description: "Delivery partner created successfully. They can now login with their email and password.",
       });
       
-      // Refresh list in background
       fetchPartners();
     } catch (error) {
       toast({
@@ -111,6 +106,75 @@ const DeliveryPartners = () => {
     } finally {
       setCreating(false);
     }
+  };
+
+  const handleEditPartner = async () => {
+    if (!editingPartner.name || !editingPartner.email) {
+      toast({
+        title: "Validation Error",
+        description: "Name and email are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEditing(true);
+    try {
+      await tenantAdminAPI.updateDeliveryPartner(editingPartner.id, {
+        name: editingPartner.name,
+        email: editingPartner.email,
+        phone: editingPartner.phone,
+        vehicle_type: editingPartner.vehicle_type,
+        vehicle_number: editingPartner.vehicle_number,
+        status: editingPartner.status,
+      });
+      
+      setIsEditDialogOpen(false);
+      setEditingPartner(null);
+      
+      toast({
+        title: "Success",
+        description: "Delivery partner updated successfully",
+      });
+      
+      fetchPartners();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to update delivery partner",
+        variant: "destructive",
+      });
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const handleDeletePartner = async (partnerId, partnerName) => {
+    if (!window.confirm(`Are you sure you want to delete ${partnerName}?`)) {
+      return;
+    }
+
+    try {
+      await tenantAdminAPI.deleteDeliveryPartner(partnerId);
+      
+      toast({
+        title: "Success",
+        description: "Delivery partner deleted successfully",
+      });
+      
+      fetchPartners();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to delete delivery partner",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openEditDialog = (partner) => {
+    setEditingPartner({ ...partner });
+    setIsEditDialogOpen(true);
   };
 
   const getVehicleIcon = (type) => {
@@ -128,20 +192,23 @@ const DeliveryPartners = () => {
       inactive: 'secondary',
       busy: 'destructive'
     };
-    return <Badge variant={variants[status] || 'default'}>{status}</Badge>;
+    return <Badge variant={variants[status] || 'secondary'}>{status}</Badge>;
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading delivery partners...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-8 max-w-7xl">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-8">
+      <div className="flex justify-between items-start mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Delivery Partners</h1>
           <p className="text-gray-600 mt-1">Manage your delivery partner network</p>
@@ -238,6 +305,99 @@ const DeliveryPartners = () => {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Delivery Partner</DialogTitle>
+            <DialogDescription>
+              Update delivery partner information
+            </DialogDescription>
+          </DialogHeader>
+          {editingPartner && (
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit_name">Full Name *</Label>
+                <Input
+                  id="edit_name"
+                  value={editingPartner.name}
+                  onChange={(e) => setEditingPartner({...editingPartner, name: e.target.value})}
+                  placeholder="John Doe"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_email">Email Address *</Label>
+                <Input
+                  id="edit_email"
+                  type="email"
+                  value={editingPartner.email}
+                  onChange={(e) => setEditingPartner({...editingPartner, email: e.target.value})}
+                  placeholder="john@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_phone">Phone Number</Label>
+                <Input
+                  id="edit_phone"
+                  type="tel"
+                  value={editingPartner.phone || ''}
+                  onChange={(e) => setEditingPartner({...editingPartner, phone: e.target.value})}
+                  placeholder="+1 234 567 8900"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_vehicle">Vehicle Type</Label>
+                <Select 
+                  value={editingPartner.vehicle_type} 
+                  onValueChange={(value) => setEditingPartner({...editingPartner, vehicle_type: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bike">Bike / Scooter</SelectItem>
+                    <SelectItem value="car">Car</SelectItem>
+                    <SelectItem value="truck">Truck / Van</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_vehicle_number">Vehicle Number</Label>
+                <Input
+                  id="edit_vehicle_number"
+                  value={editingPartner.vehicle_number || ''}
+                  onChange={(e) => setEditingPartner({...editingPartner, vehicle_number: e.target.value})}
+                  placeholder="AB-1234"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_status">Status</Label>
+                <Select 
+                  value={editingPartner.status} 
+                  onValueChange={(value) => setEditingPartner({...editingPartner, status: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditPartner} disabled={editing}>
+              {editing ? 'Updating...' : 'Update Partner'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -356,10 +516,19 @@ const DeliveryPartners = () => {
                       )}
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="ghost" size="sm">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => openEditDialog(partner)}
+                      >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-red-600 hover:text-red-700"
+                        onClick={() => handleDeletePartner(partner.id, partner.name)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>

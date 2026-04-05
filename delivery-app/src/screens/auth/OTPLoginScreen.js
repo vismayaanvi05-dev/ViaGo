@@ -14,10 +14,12 @@ import { useAuth } from '../../context/AuthContext';
 import { APP_CONFIG } from '../../config';
 
 const OTPLoginScreen = () => {
-  const { sendOTP, verifyOTP } = useAuth();
+  const { sendOTP, verifyOTP, loginWithPassword } = useAuth();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [name, setName] = useState('');
+  const [loginMode, setLoginMode] = useState('password'); // 'password' or 'otp'
   const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: Name (for new users)
   const [loading, setLoading] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
@@ -63,6 +65,28 @@ const OTPLoginScreen = () => {
     }
   };
 
+  const handlePasswordLogin = async () => {
+    if (!validateEmail(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    if (!password.trim()) {
+      Alert.alert('Error', 'Please enter your password');
+      return;
+    }
+
+    setLoading(true);
+    const result = await loginWithPassword(email, password);
+    setLoading(false);
+
+    if (result.success) {
+      // Navigation handled by RootNavigator
+    } else {
+      Alert.alert('Error', result.error || 'Invalid credentials');
+    }
+  };
+
   const handleSubmitName = () => {
     if (!name.trim()) {
       Alert.alert('Error', 'Please enter your name');
@@ -80,14 +104,71 @@ const OTPLoginScreen = () => {
         <Text style={styles.logo}>🚚</Text>
         <Text style={styles.title}>Welcome Delivery Partner</Text>
         <Text style={styles.subtitle}>
-          {step === 1
+          {loginMode === 'password' 
+            ? 'Login with your email and password'
+            : step === 1
             ? 'Enter your email to continue'
             : step === 2
             ? 'Enter the OTP sent to your email'
             : 'Tell us your name'}
         </Text>
 
-        {step === 1 && (
+        {/* Login Mode Toggle */}
+        <View style={styles.toggleContainer}>
+          <TouchableOpacity
+            style={[styles.toggleButton, loginMode === 'password' && styles.toggleButtonActive]}
+            onPress={() => setLoginMode('password')}
+          >
+            <Text style={[styles.toggleText, loginMode === 'password' && styles.toggleTextActive]}>
+              Password
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleButton, loginMode === 'otp' && styles.toggleButtonActive]}
+            onPress={() => setLoginMode('otp')}
+          >
+            <Text style={[styles.toggleText, loginMode === 'otp' && styles.toggleTextActive]}>
+              OTP
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Password Login Mode */}
+        {loginMode === 'password' && (
+          <>
+            <TextInput
+              style={styles.input}
+              placeholder="Email Address"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={email}
+              onChangeText={setEmail}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              secureTextEntry
+              autoCapitalize="none"
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handlePasswordLogin}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Login</Text>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* OTP Login Mode */}
+        {loginMode === 'otp' && step === 1 && (
           <>
             <TextInput
               style={styles.input}
@@ -115,7 +196,7 @@ const OTPLoginScreen = () => {
           </>
         )}
 
-        {step === 2 && (
+        {loginMode === 'otp' && step === 2 && (
           <>
             <Text style={styles.emailDisplay}>{email}</Text>
             <TextInput
@@ -146,7 +227,7 @@ const OTPLoginScreen = () => {
           </>
         )}
 
-        {step === 3 && (
+        {loginMode === 'otp' && step === 3 && (
           <>
             <TextInput
               style={styles.input}
@@ -202,6 +283,36 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     marginBottom: 32,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    marginBottom: 24,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 4,
+    width: '100%',
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  toggleButtonActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  toggleTextActive: {
+    color: '#F97316',
   },
   input: {
     width: '100%',
