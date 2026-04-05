@@ -29,3 +29,10 @@ export const SERVICE_TYPES = {
     color: '#3B82F6',
   },
 };
+
+// Module config with uppercase keys (used by home.tsx)
+export const MODULES = {
+  FOOD: { id: 'food', name: 'Food', icon: 'restaurant', color: '#EF4444', description: 'Order food from restaurants' },
+  GROCERY: { id: 'grocery', name: 'Grocery', icon: 'cart', color: '#10B981', description: 'Fresh groceries delivered' },
+  LAUNDRY: { id: 'laundry', name: 'Laundry', icon: 'shirt', color: '#3B82F6', description: 'Wash & fold services' },
+};

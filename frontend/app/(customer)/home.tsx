@@ -115,7 +115,7 @@ export default function CustomerHomeScreen() {
               onPress={() => setSelectedModule(mod.id)}
               activeOpacity={0.7}
             >
-              <Text style={styles.moduleEmoji}>{mod.icon}</Text>
+              <Ionicons name={mod.icon as any} size={18} color={selected ? '#fff' : mod.color} />
               <Text style={[styles.moduleLabel, selected && { color: '#fff' }]}>{mod.name}</Text>
             </TouchableOpacity>
           );
@@ -129,7 +129,7 @@ export default function CustomerHomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[APP_CONFIG.PRIMARY_COLOR]} />}
       >
         <Text style={styles.sectionTitle}>
-          {currentModule.icon} {currentModule.name} near you
+          <Ionicons name={currentModule.icon as any} size={18} color={currentModule.color} /> {currentModule.name} near you
         </Text>
 
         {loading && !refreshing ? (
@@ -156,7 +156,7 @@ export default function CustomerHomeScreen() {
               activeOpacity={0.7}
             >
               <View style={[styles.storeAvatar, { backgroundColor: currentModule.color + '18' }]}>
-                <Text style={{ fontSize: 24 }}>{currentModule.icon}</Text>
+                <Ionicons name={currentModule.icon as any} size={24} color={currentModule.color} />
               </View>
               <View style={styles.storeInfo}>
                 <View style={styles.storeNameRow}>
