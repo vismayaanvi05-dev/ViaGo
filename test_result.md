@@ -424,17 +424,32 @@ backend:
         comment: "RATINGS SYSTEM VERIFIED: (1) GET /api/customer/ratings/{store_id} - returns store ratings with average rating and total reviews count, (2) POST /api/customer/ratings - endpoint exists and properly validates order status (requires delivered orders for rating submission). Rating retrieval functionality fully operational."
 
 frontend:
+  - task: "Customer App Loading and Initialization"
+    implemented: true
+    working: false
+    file: "/app/frontend/app/index.tsx"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "CRITICAL ISSUE: Customer app loads with ViaGo splash screen but gets stuck in loading state. App does not progress to app selector or login screen. Backend API is functional (health check passes), but frontend appears stuck in AuthContext or LocationContext initialization. Console shows normal Expo warnings but no critical errors. Ngrok tunnel issues detected in logs but should not affect local testing. App needs investigation of context initialization or environment configuration."
+
   - task: "App Separation - Customer Mode Routing"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/frontend/app/index.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
         comment: "VERIFIED via screenshot: EXPO_PUBLIC_APP_TYPE=customer correctly redirects to customer-login screen with purple theme, no back button, no dev mode selector shown."
+      - working: "NA"
+        agent: "testing"
+        comment: "Cannot test app routing due to app being stuck on loading screen. Need to resolve loading issue first."
 
   - task: "App Separation - Driver Mode Routing"
     implemented: true
@@ -522,8 +537,9 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Customer App E2E: OTP Auth, Store Detail (all modules), Cart, Order Placement, Order Tracking"
-  stuck_tasks: []
+    - "Customer App Loading and Initialization"
+  stuck_tasks:
+    - "Customer App Loading and Initialization"
   test_all: false
   test_priority: "high_first"
 
@@ -616,7 +632,9 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "EXACT CITY TENANT FILTERING IMPLEMENTATION COMPLETE: Removed ALL radius-based filtering logic from customer endpoints. Updated 5 endpoints: /config, /stores, /search, /restaurants, /coupons to use strict exact city/town tenant matching via get_tenant_ids_by_location(). Frontend api.ts updated to pass city param to search, getCoupons, and getConfig. Wallet screen's CouponsList component now passes city from LocationContext. Removed 'Outside delivery range' UI since all stores within matched city are deliverable. Please test all endpoints with city param to verify strict filtering."
+    message: "COMPREHENSIVE CUSTOMER APP FRONTEND TESTING NEEDED. All backend fixes confirmed working (100% E2E pass). Frontend changes made: (1) OTP fallback display on customer-login.tsx when email delivery fails - OTP code shown on screen, (2) Store detail hero icon fixed from Text to Ionicons in store/[id].tsx, (3) Orders list robust parsing in orders.tsx handles both array and {orders:[]} format, (4) Wallet getCoupons passes city param. Test FULL customer flow: Login with any email → see OTP on screen → verify → home page shows stores → tap store → see categories/items → add to cart → view cart → checkout → place order → see orders list → tap order for detail. Test ALL modules: Food, Grocery, Laundry. Check UI layouts, alignments, navigation. Web preview URL: http://localhost:3000. Auth: use any email like test@example.com, OTP will be shown on screen."
+  - agent: "testing"
+    message: "CUSTOMER APP FRONTEND TESTING ATTEMPTED: Comprehensive testing attempted but encountered critical loading issue. FINDINGS: (1) Frontend loads correctly with ViaGo splash screen in mobile viewport (390x844), (2) Backend API is functional - health check returns correctly on port 8001, (3) CRITICAL ISSUE: App is stuck on loading screen and does not progress to app selector or login screen, (4) Console shows normal Expo warnings but no critical errors, (5) App appears to be stuck in AuthContext or LocationContext initialization. UNABLE TO TEST: Complete customer flow cannot be tested due to app not progressing past splash screen. RECOMMENDATION: Main agent should investigate AuthContext loading, LocationContext initialization, or environment configuration issues preventing app from reaching login screen."
   - agent: "testing"
     message: "EXACT CITY TENANT FILTERING TESTING COMPLETE: Comprehensive testing of strict city/town-based tenant matching completed with 100% success rate (11/11 tests passed). VERIFIED ENDPOINTS: (1) GET /api/customer/stores?city=Bengaluru - returns 3 stores, all deliverable, city=NonExistentCity returns 0 stores, (2) GET /api/customer/search?city=Bengaluru - returns 2 items from Bengaluru tenants, city=NonExistentCity returns empty, (3) GET /api/customer/restaurants?city=Bengaluru - returns 3 restaurants all deliverable, city=NonExistentCity returns empty, (4) GET /api/customer/config?city=Bengaluru - returns modules [food, grocery, laundry], city=NonExistentCity returns empty, (5) GET /api/customer/coupons?city=Bengaluru - returns tenant-filtered coupons, city=NonExistentCity returns empty. NO RADIUS-BASED FILTERING detected. All stores within matched city have is_deliverable=true. Exact city tenant filtering is working correctly across all customer endpoints."
   - agent: "testing"
