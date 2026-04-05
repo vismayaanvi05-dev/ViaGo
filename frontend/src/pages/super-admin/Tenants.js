@@ -38,6 +38,11 @@ const Tenants = () => {
     name: '',
     business_type: 'single_vendor',
     active_modules: ['food'],
+    // Location fields
+    address: '',
+    town: '',
+    lat: null,
+    lng: null,
     // Subscription fields
     assign_subscription: false,
     plan_id: '',
@@ -102,6 +107,10 @@ const Tenants = () => {
           name: tenantForm.name,
           business_type: tenantForm.business_type,
           active_modules: tenantForm.active_modules,
+          address: tenantForm.address,
+          town: tenantForm.town,
+          lat: tenantForm.lat,
+          lng: tenantForm.lng,
           status: tenantForm.status
         };
         await superAdminAPI.updateTenant(editingTenant.id, updateData);
@@ -174,6 +183,10 @@ const Tenants = () => {
       name: '',
       business_type: 'single_vendor',
       active_modules: ['food'],
+      address: '',
+      town: '',
+      lat: null,
+      lng: null,
       assign_subscription: false,
       plan_id: '',
       pricing_model: 'subscription',
@@ -201,6 +214,10 @@ const Tenants = () => {
       name: tenant.name,
       business_type: tenant.business_type,
       active_modules: tenant.active_modules,
+      address: tenant.address || '',
+      town: tenant.town || '',
+      lat: tenant.lat || null,
+      lng: tenant.lng || null,
       status: tenant.status || 'active',
       // Subscription fields for editing
       assign_subscription: !!currentSub,
@@ -335,6 +352,53 @@ const Tenants = () => {
                       <Label htmlFor={module} className="capitalize">{module}</Label>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Location Fields */}
+              <div className="space-y-2">
+                <Label htmlFor="address">Address</Label>
+                <Input
+                  id="address"
+                  value={tenantForm.address}
+                  onChange={(e) => setTenantForm({ ...tenantForm, address: e.target.value })}
+                  placeholder="Business address"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="town">Town/City/Village</Label>
+                <Input
+                  id="town"
+                  value={tenantForm.town}
+                  onChange={(e) => setTenantForm({ ...tenantForm, town: e.target.value })}
+                  placeholder="Location name"
+                />
+                <p className="text-xs text-gray-500">Customers will be matched with this location</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="lat">Latitude</Label>
+                  <Input
+                    id="lat"
+                    type="number"
+                    step="any"
+                    value={tenantForm.lat || ''}
+                    onChange={(e) => setTenantForm({ ...tenantForm, lat: e.target.value ? parseFloat(e.target.value) : null })}
+                    placeholder="12.9716"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lng">Longitude</Label>
+                  <Input
+                    id="lng"
+                    type="number"
+                    step="any"
+                    value={tenantForm.lng || ''}
+                    onChange={(e) => setTenantForm({ ...tenantForm, lng: e.target.value ? parseFloat(e.target.value) : null })}
+                    placeholder="77.5946"
+                  />
                 </div>
               </div>
 
