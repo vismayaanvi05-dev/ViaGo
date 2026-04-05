@@ -424,7 +424,65 @@ backend:
         comment: "RATINGS SYSTEM VERIFIED: (1) GET /api/customer/ratings/{store_id} - returns store ratings with average rating and total reviews count, (2) POST /api/customer/ratings - endpoint exists and properly validates order status (requires delivered orders for rating submission). Rating retrieval functionality fully operational."
 
 frontend:
-  # Frontend testing not performed as per instructions
+  - task: "App Separation - Customer Mode Routing"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "VERIFIED via screenshot: EXPO_PUBLIC_APP_TYPE=customer correctly redirects to customer-login screen with purple theme, no back button, no dev mode selector shown."
+
+  - task: "App Separation - Driver Mode Routing"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "VERIFIED via screenshot: EXPO_PUBLIC_APP_TYPE=driver correctly redirects to driver-login screen with green theme, no back button, no dev mode selector shown."
+
+  - task: "App Separation - Dev Mode (App Selector)"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "VERIFIED via screenshot: Without EXPO_PUBLIC_APP_TYPE set, app shows dev mode selector with Customer App and Driver App cards, DEVELOPMENT MODE badge, and Admin Portal link."
+
+  - task: "Layout Warning Fix - No conditional Stack.Screen children"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/_layout.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "VERIFIED: Removed conditional Stack.Screen rendering that caused 'Layout children must be of type Screen' warnings. After fix, zero warnings in expo error logs."
+
+  - task: "Route Guards - Cross-app navigation prevention"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(customer)/_layout.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added route guards to (customer)/_layout.tsx and (delivery)/_layout.tsx. Driver app redirects away from customer routes, customer app redirects away from delivery routes."
 
 metadata:
   created_by: "testing_agent"

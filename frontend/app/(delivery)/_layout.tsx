@@ -1,7 +1,20 @@
-import { Tabs } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { IS_CUSTOMER_APP } from '@/src/config';
 
 export default function DeliveryLayout() {
+  const router = useRouter();
+
+  // Route guard: redirect customer app away from delivery routes
+  useEffect(() => {
+    if (IS_CUSTOMER_APP) {
+      router.replace('/(auth)/customer-login');
+    }
+  }, []);
+
+  if (IS_CUSTOMER_APP) return null;
+
   return (
     <Tabs
       screenOptions={{

@@ -1,8 +1,20 @@
-import { Tabs } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { APP_CONFIG } from '@/src/config';
+import { APP_CONFIG, IS_DRIVER_APP } from '@/src/config';
 
 export default function CustomerLayout() {
+  const router = useRouter();
+
+  // Route guard: redirect driver app away from customer routes
+  useEffect(() => {
+    if (IS_DRIVER_APP) {
+      router.replace('/(auth)/driver-login');
+    }
+  }, []);
+
+  if (IS_DRIVER_APP) return null;
+
   return (
     <Tabs
       screenOptions={{

@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { APP_CONFIG } from '@/src/config';
+import { APP_CONFIG, IS_DEV_MODE } from '@/src/config';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function CustomerLoginScreen() {
@@ -118,9 +118,13 @@ export default function CustomerLoginScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={22} color="#1E293B" />
-          </TouchableOpacity>
+          {IS_DEV_MODE ? (
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={22} color="#1E293B" />
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 40 }} />
+          )}
           <Text style={styles.headerTitle}>Customer</Text>
           <View style={{ width: 40 }} />
         </View>
