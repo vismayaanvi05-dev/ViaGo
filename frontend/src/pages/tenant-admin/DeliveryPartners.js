@@ -120,14 +120,21 @@ const DeliveryPartners = () => {
 
     setEditing(true);
     try {
-      await tenantAdminAPI.updateDeliveryPartner(editingPartner.id, {
+      const updateData = {
         name: editingPartner.name,
         email: editingPartner.email,
         phone: editingPartner.phone,
         vehicle_type: editingPartner.vehicle_type,
         vehicle_number: editingPartner.vehicle_number,
         status: editingPartner.status,
-      });
+      };
+      
+      // Only include password if it was changed
+      if (editingPartner.password && editingPartner.password.trim()) {
+        updateData.password = editingPartner.password;
+      }
+      
+      await tenantAdminAPI.updateDeliveryPartner(editingPartner.id, updateData);
       
       setIsEditDialogOpen(false);
       setEditingPartner(null);
@@ -335,6 +342,17 @@ const DeliveryPartners = () => {
                   onChange={(e) => setEditingPartner({...editingPartner, email: e.target.value})}
                   placeholder="john@example.com"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_password">Password (optional)</Label>
+                <Input
+                  id="edit_password"
+                  type="password"
+                  value={editingPartner.password || ''}
+                  onChange={(e) => setEditingPartner({...editingPartner, password: e.target.value})}
+                  placeholder="Leave blank to keep current password"
+                />
+                <p className="text-sm text-gray-500">Only enter a new password if you want to change it</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit_phone">Phone Number</Label>

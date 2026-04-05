@@ -911,6 +911,11 @@ async def update_delivery_partner(
     allowed_fields = ["name", "email", "phone", "vehicle_type", "vehicle_number", "status"]
     update_data = {k: v for k, v in partner_data.items() if k in allowed_fields}
     
+    # Handle password update separately (optional)
+    if "password" in partner_data and partner_data["password"]:
+        from utils.helpers import get_password_hash
+        update_data["password"] = get_password_hash(partner_data["password"])
+    
     if update_data:
         update_data["updated_at"] = datetime.utcnow().isoformat()
         await db.users.update_one({"id": partner_id}, {"$set": update_data})
