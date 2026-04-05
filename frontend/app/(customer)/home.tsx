@@ -7,9 +7,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
   TextInput,
+  Platform,
+  StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocation } from '@/src/contexts/LocationContext';
@@ -21,6 +23,7 @@ export default function CustomerHomeScreen() {
   const router = useRouter();
   const { location, address } = useLocation();
   const { itemCount } = useCart();
+  const insets = useSafeAreaInsets();
   const [selectedModule, setSelectedModule] = useState('food');
   const [stores, setStores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,7 +60,7 @@ export default function CustomerHomeScreen() {
   const currentModule = getModuleConfig(selectedModule);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -203,7 +206,7 @@ export default function CustomerHomeScreen() {
         )}
         <View style={{ height: 80 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

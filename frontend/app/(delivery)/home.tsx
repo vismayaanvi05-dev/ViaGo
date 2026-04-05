@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
   Modal,
   Linking,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocation } from '@/src/contexts/LocationContext';
 import { deliveryAPI } from '@/src/services/api';
@@ -20,6 +20,7 @@ const G = '#10B981';
 
 export default function DeliveryHomeScreen() {
   const { location, address } = useLocation();
+  const insets = useSafeAreaInsets();
   const [deliveries, setDeliveries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -236,17 +237,17 @@ export default function DeliveryHomeScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={G} />
           <Text style={styles.loadingText}>Finding deliveries...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -340,7 +341,7 @@ export default function DeliveryHomeScreen() {
           <Text style={styles.toastText}>{toast.message}</Text>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
