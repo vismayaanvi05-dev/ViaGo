@@ -51,6 +51,9 @@ async def driver_login(request: dict, db: AsyncIOMotorDatabase = Depends(get_db)
     }
     access_token = create_access_token(token_data)
 
+    # Remove sensitive fields from response
+    user_doc.pop("password", None)
+
     # Convert datetime fields
     for field in ["created_at", "updated_at"]:
         if isinstance(user_doc.get(field), str):

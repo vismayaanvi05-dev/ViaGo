@@ -767,6 +767,7 @@ class DeliveryPartnerCreate(BaseModel):
     name: str
     email: str
     phone: Optional[str] = None
+    password: Optional[str] = None  # Password set by tenant admin
     vehicle_type: str = "bike"  # bike, car, truck
     vehicle_number: Optional[str] = None
 
@@ -791,6 +792,7 @@ async def create_delivery_partner(
     # Create delivery partner user
     from models.user import User
     from uuid import uuid4
+    from utils.helpers import get_password_hash
     
     new_partner = User(
         id=str(uuid4()),
@@ -811,9 +813,11 @@ async def create_delivery_partner(
     partner_dict["current_order_id"] = None
     partner_dict["current_location"] = None
     
-    await db.users.insert_one(partner_dict)
+    # Hash and store password if provided by tenant admin
+    if partner_data.password:
+        partner_dict["password"] = get_password_hash(partner_data.password)
     
-    # TODO: Send email with login credentials (OTP-based)
+    await db.users.insert_one(partner_dict)
     
     return {
         "success": True,
