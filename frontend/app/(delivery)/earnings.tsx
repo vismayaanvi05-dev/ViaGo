@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,72 +12,51 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { deliveryAPI } from '@/src/services/api';
 
-const DRIVER_COLOR = '#10B981';
+const G = '#10B981';
 
 export default function EarningsScreen() {
-  const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
   const [earnings, setEarnings] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
 
-  useEffect(() => {
-    loadEarnings();
-    loadHistory();
-  }, [period]);
-
-  const loadEarnings = async () => {
+  const loadEarnings = useCallback(async () => {
     try {
-      setLoading(true);
       const response = await deliveryAPI.getEarnings(period);
       setEarnings(response.data);
     } catch (error) {
       console.error('Error loading earnings:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadHistory = async () => {
-    try {
-      const response = await deliveryAPI.getDeliveryHistory(0, 10);
-      setHistory(response.data.deliveries || []);
-    } catch (error) {
-      console.error('Error loading history:', error);
-    } finally {
       setRefreshing(false);
     }
-  };
+  }, [period]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadEarnings();
+  }, [loadEarnings]);
 
   const onRefresh = () => {
     setRefreshing(true);
     loadEarnings();
-    loadHistory();
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  };
-
-  const getPeriodLabel = () => {
-    switch (period) {
-      case 'today': return "Today's";
-      case 'week': return 'This Week';
-      case 'month': return 'This Month';
-    }
   };
 
   if (loading && !earnings) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={DRIVER_COLOR} />
+          <ActivityIndicator size="large" color={G} />
           <Text style={styles.loadingText}>Loading earnings...</Text>
         </View>
       </SafeAreaView>
     );
   }
+
+  const totalEarnings = earnings?.total_earnings || 0;
+  const totalDeliveries = earnings?.total_deliveries || 0;
+  const avgEarning = totalDeliveries > 0 ? (totalEarnings / totalDeliveries).toFixed(0) : 0;
+  const recentOrders = earnings?.recent_orders || [];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -87,18 +66,18 @@ export default function EarningsScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[DRIVER_COLOR]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[G]} />}
       >
-        {/* Period Selector */}
-        <View style={styles.periodContainer}>
+        {/* Period Tabs */}
+        <View style={styles.periodRow}>
           {(['today', 'week', 'month'] as const).map((p) => (
             <TouchableOpacity
               key={p}
-              style={[styles.periodButton, period === p && styles.activePeriod]}
+              style={[styles.periodTab, period === p && styles.periodTabActive]}
               onPress={() => setPeriod(p)}
             >
-              <Text style={[styles.periodText, period === p && styles.activePeriodText]}>
-                {p.charAt(0).toUpperCase() + p.slice(1)}
+              <Text style={[styles.periodText, period === p && styles.periodTextActive]}>
+                {p === 'today' ? 'Today' : p === 'week' ? 'This Week' : 'This Month'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -106,166 +85,135 @@ export default function EarningsScreen() {
 
         {/* Earnings Card */}
         <View style={styles.earningsCard}>
-          <View style={styles.earningsGradient}>
-            <Text style={styles.earningsLabel}>{getPeriodLabel()} Earnings</Text>
-            <Text style={styles.earningsAmount}>{'\u20B9'}{earnings?.total_earnings || 0}</Text>
-          </View>
-          
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <View style={[styles.statIconContainer, { backgroundColor: '#D1FAE5' }]}>
-                <Ionicons name="bicycle" size={22} color={DRIVER_COLOR} />
+          <Text style={styles.earningsLabel}>Total Earnings</Text>
+          <Text style={styles.earningsAmount}>{'\u20B9'}{totalEarnings}</Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <View style={[styles.statIcon, { backgroundColor: '#D1FAE5' }]}>
+                <Ionicons name="bicycle" size={18} color={G} />
               </View>
-              <Text style={styles.statValue}>{earnings?.total_deliveries || 0}</Text>
+              <Text style={styles.statValue}>{totalDeliveries}</Text>
               <Text style={styles.statLabel}>Deliveries</Text>
             </View>
-            <View style={styles.statCard}>
-              <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                <Ionicons name="cash" size={22} color="#F59E0B" />
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <View style={[styles.statIcon, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="trending-up" size={18} color="#F59E0B" />
               </View>
-              <Text style={styles.statValue}>{'\u20B9'}{earnings?.average_per_delivery || 0}</Text>
-              <Text style={styles.statLabel}>Avg / Delivery</Text>
+              <Text style={styles.statValue}>{'\u20B9'}{avgEarning}</Text>
+              <Text style={styles.statLabel}>Per Delivery</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <View style={[styles.statIcon, { backgroundColor: '#E0E7FF' }]}>
+                <Ionicons name="star" size={18} color="#6366F1" />
+              </View>
+              <Text style={styles.statValue}>{earnings?.rating || '5.0'}</Text>
+              <Text style={styles.statLabel}>Rating</Text>
             </View>
           </View>
         </View>
 
-        {/* Recent Deliveries */}
-        <View style={styles.historySection}>
-          <Text style={styles.sectionTitle}>Recent Deliveries</Text>
-          
-          {history.length === 0 ? (
-            <View style={styles.emptyHistory}>
-              <Ionicons name="receipt-outline" size={40} color="#D1D5DB" />
-              <Text style={styles.emptyHistoryText}>No delivery history yet</Text>
-              <Text style={styles.emptyHistorySubtext}>Complete deliveries to see them here</Text>
+        {/* Recent Orders */}
+        <View style={styles.recentSection}>
+          <Text style={styles.recentTitle}>Delivery History</Text>
+
+          {recentOrders.length === 0 ? (
+            <View style={styles.noHistory}>
+              <Ionicons name="document-text-outline" size={36} color="#D1D5DB" />
+              <Text style={styles.noHistoryText}>No deliveries in this period</Text>
             </View>
           ) : (
-            history.map((item) => (
-              <View key={item.id} style={styles.historyCard}>
-                <View style={styles.historyIcon}>
-                  <Ionicons name="checkmark-circle" size={24} color={DRIVER_COLOR} />
-                </View>
-                <View style={styles.historyContent}>
-                  <View style={styles.historyHeader}>
-                    <Text style={styles.historyOrder}>#{item.order_number}</Text>
-                    <Text style={styles.historyAmount}>+{'\u20B9'}{item.delivery_fee || 50}</Text>
+            recentOrders.map((order: any, index: number) => (
+              <View key={order.id || index} style={styles.historyItem}>
+                <View style={styles.historyLeft}>
+                  <View style={[styles.historyIcon, {
+                    backgroundColor: order.status === 'delivered' ? '#D1FAE5' : '#FEE2E2'
+                  }]}>
+                    <Ionicons
+                      name={order.status === 'delivered' ? 'checkmark-circle' : 'close-circle'}
+                      size={18}
+                      color={order.status === 'delivered' ? '#059669' : '#EF4444'}
+                    />
                   </View>
-                  <Text style={styles.historyStore}>{item.store_name || 'Restaurant'}</Text>
-                  <Text style={styles.historyDate}>{formatDate(item.delivered_at || item.created_at)}</Text>
+                  <View>
+                    <Text style={styles.historyOrder}>#{order.order_number}</Text>
+                    <Text style={styles.historyStore}>{order.store_name || 'Store'}</Text>
+                    <Text style={styles.historyTime}>
+                      {order.completed_at ? new Date(order.completed_at).toLocaleDateString() : 'N/A'}
+                    </Text>
+                  </View>
                 </View>
+                <Text style={styles.historyEarning}>+{'\u20B9'}{order.delivery_earning || 50}</Text>
               </View>
             ))
           )}
         </View>
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 24 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { marginTop: 12, color: '#6B7280', fontSize: 14 },
+  loadingText: { marginTop: 12, color: '#64748B', fontSize: 14 },
+
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    paddingHorizontal: 20, paddingVertical: 14,
+    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
   },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: '#1F2937' },
-  periodContainer: {
-    flexDirection: 'row',
-    padding: 16,
-    gap: 10,
+  headerTitle: { fontSize: 22, fontWeight: '800', color: '#0F172A' },
+
+  periodRow: {
+    flexDirection: 'row', padding: 16, gap: 8,
   },
-  periodButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+  periodTab: {
+    flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center',
+    backgroundColor: '#F1F5F9',
   },
-  activePeriod: { backgroundColor: DRIVER_COLOR, borderColor: DRIVER_COLOR },
-  periodText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
-  activePeriodText: { color: '#fff' },
+  periodTabActive: { backgroundColor: G },
+  periodText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
+  periodTextActive: { color: '#fff' },
+
   earningsCard: {
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+    backgroundColor: '#fff', marginHorizontal: 16, borderRadius: 20, padding: 24,
+    alignItems: 'center', marginBottom: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04, shadowRadius: 12, elevation: 2,
   },
-  earningsGradient: {
-    backgroundColor: DRIVER_COLOR,
-    padding: 28,
-    alignItems: 'center',
+  earningsLabel: { fontSize: 13, color: '#94A3B8', fontWeight: '600', marginBottom: 4 },
+  earningsAmount: { fontSize: 42, fontWeight: '800', color: '#0F172A', marginBottom: 20 },
+  statsRow: {
+    flexDirection: 'row', justifyContent: 'space-between', width: '100%',
+    paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9',
   },
-  earningsLabel: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginBottom: 8 },
-  earningsAmount: { fontSize: 48, fontWeight: '800', color: '#fff' },
-  statsGrid: {
-    flexDirection: 'row',
-    padding: 20,
-    gap: 16,
+  statItem: { flex: 1, alignItems: 'center' },
+  statIcon: {
+    width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8,
   },
-  statCard: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 14,
-    padding: 16,
+  statValue: { fontSize: 18, fontWeight: '800', color: '#0F172A', marginBottom: 2 },
+  statLabel: { fontSize: 11, color: '#94A3B8', fontWeight: '500' },
+  statDivider: { width: 1, height: 60, backgroundColor: '#F1F5F9' },
+
+  recentSection: { marginHorizontal: 16 },
+  recentTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A', marginBottom: 12 },
+  noHistory: { alignItems: 'center', paddingVertical: 40 },
+  noHistoryText: { fontSize: 14, color: '#94A3B8', marginTop: 10 },
+
+  historyItem: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#fff', padding: 14, borderRadius: 14, marginBottom: 8,
   },
-  statIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
+  historyLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  historyIcon: {
+    width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
   },
-  statValue: { fontSize: 20, fontWeight: '700', color: '#1F2937', marginBottom: 4 },
-  statLabel: { fontSize: 12, color: '#9CA3AF' },
-  historySection: { padding: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937', marginBottom: 14 },
-  emptyHistory: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-  },
-  emptyHistoryText: { fontSize: 16, fontWeight: '600', color: '#1F2937', marginTop: 12 },
-  emptyHistorySubtext: { fontSize: 14, color: '#9CA3AF', marginTop: 4 },
-  historyCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 14,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  historyIcon: { marginRight: 14 },
-  historyContent: { flex: 1 },
-  historyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  historyOrder: { fontSize: 16, fontWeight: '600', color: '#1F2937' },
-  historyAmount: { fontSize: 16, fontWeight: '700', color: DRIVER_COLOR },
-  historyStore: { fontSize: 14, color: '#6B7280', marginBottom: 4 },
-  historyDate: { fontSize: 12, color: '#9CA3AF' },
+  historyOrder: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
+  historyStore: { fontSize: 12, color: '#64748B', marginTop: 1 },
+  historyTime: { fontSize: 11, color: '#94A3B8', marginTop: 1 },
+  historyEarning: { fontSize: 16, fontWeight: '800', color: '#059669' },
 });

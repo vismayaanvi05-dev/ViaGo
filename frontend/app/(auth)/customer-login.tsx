@@ -6,10 +6,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -26,6 +26,8 @@ export default function CustomerLoginScreen() {
   const [step, setStep] = useState<'email' | 'otp' | 'name'>('email');
   const [loading, setLoading] = useState(false);
   const [displayOTP, setDisplayOTP] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
     setAppMode('customer');
@@ -37,6 +39,11 @@ export default function CustomerLoginScreen() {
     }
   }, [isAuthenticated, appMode]);
 
+  const showError = (msg: string) => {
+    setErrorMsg(msg);
+    setTimeout(() => setErrorMsg(''), 4000);
+  };
+
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
@@ -44,49 +51,40 @@ export default function CustomerLoginScreen() {
 
   const handleSendOTP = async () => {
     if (!validateEmail(email)) {
-      Alert.alert('Invalid Email', 'Please enter a valid email address');
+      showError('Please enter a valid email address');
       return;
     }
 
     setLoading(true);
+    setErrorMsg('');
     try {
       const result = await sendOTP(email);
       setLoading(false);
 
       if (result.success) {
-        // If OTP is returned (testing mode), show it
         if (result.otp) {
           setDisplayOTP(result.otp);
-          Alert.alert(
-            'OTP Sent! ✉️', 
-            `Your verification code is: ${result.otp}\n\n(Testing mode - In production, check your email)`,
-            [{ text: 'OK' }]
-          );
-        } else {
-          // Email was sent successfully
-          Alert.alert(
-            'OTP Sent! ✉️', 
-            `A verification code has been sent to ${email}.\n\nPlease check your inbox (and spam folder).`,
-            [{ text: 'OK' }]
-          );
         }
+        setSuccessMsg(`Verification code sent to ${email}`);
+        setTimeout(() => setSuccessMsg(''), 4000);
         setStep('otp');
       } else {
-        Alert.alert('Error', result.error || 'Failed to send OTP');
+        showError(result.error || 'Failed to send OTP');
       }
     } catch (error) {
       setLoading(false);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      showError('Something went wrong. Please try again.');
     }
   };
 
   const handleVerifyOTP = async () => {
     if (otp.length !== 6) {
-      Alert.alert('Invalid OTP', 'Please enter the 6-digit OTP');
+      showError('Please enter the 6-digit verification code');
       return;
     }
 
     setLoading(true);
+    setErrorMsg('');
     try {
       const result = await verifyOTP(email, otp, name || undefined);
       setLoading(false);
@@ -96,17 +94,17 @@ export default function CustomerLoginScreen() {
       } else if (result.error?.includes('Name required')) {
         setStep('name');
       } else {
-        Alert.alert('Error', result.error || 'Invalid OTP');
+        showError(result.error || 'Invalid verification code');
       }
     } catch (error) {
       setLoading(false);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      showError('Something went wrong. Please try again.');
     }
   };
 
   const handleSubmitName = async () => {
     if (!name.trim()) {
-      Alert.alert('Name Required', 'Please enter your name');
+      showError('Please enter your name');
       return;
     }
     await handleVerifyOTP();
@@ -118,42 +116,72 @@ export default function CustomerLoginScreen() {
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
-        </TouchableOpacity>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={22} color="#1E293B" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Customer</Text>
+          <View style={{ width: 40 }} />
+        </View>
 
         <View style={styles.content}>
+          {/* Icon */}
           <View style={[styles.iconContainer, { backgroundColor: APP_CONFIG.PRIMARY_COLOR }]}>
-            <Ionicons name="cart" size={48} color="#fff" />
+            <Ionicons name="bag-handle" size={36} color="#fff" />
           </View>
-          <Text style={styles.title}>Customer Login</Text>
-          <Text style={styles.subtitle}>
-            {step === 'email' && 'Enter your email to get started'}
-            {step === 'otp' && 'Enter the verification code'}
-            {step === 'name' && 'Welcome! Tell us your name'}
+          
+          <Text style={styles.title}>
+            {step === 'email' && 'Welcome'}
+            {step === 'otp' && 'Verify Email'}
+            {step === 'name' && 'Almost Done'}
           </Text>
+          <Text style={styles.subtitle}>
+            {step === 'email' && 'Sign in with your email to continue'}
+            {step === 'otp' && `Enter the code sent to ${email}`}
+            {step === 'name' && 'Tell us your name to get started'}
+          </Text>
+
+          {/* Error/Success Banner */}
+          {errorMsg ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={16} color="#DC2626" />
+              <Text style={styles.errorBannerText}>{errorMsg}</Text>
+            </View>
+          ) : null}
+          {successMsg ? (
+            <View style={styles.successBanner}>
+              <Ionicons name="checkmark-circle" size={16} color="#059669" />
+              <Text style={styles.successBannerText}>{successMsg}</Text>
+            </View>
+          ) : null}
 
           {step === 'email' && (
             <View style={styles.form}>
-              <TextInput
-                style={styles.input}
-                placeholder="Email Address"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={email}
-                onChangeText={setEmail}
-                editable={!loading}
-              />
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="your@email.com"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={email}
+                  onChangeText={setEmail}
+                  editable={!loading}
+                />
+              </View>
               <TouchableOpacity
                 style={[styles.button, { backgroundColor: APP_CONFIG.PRIMARY_COLOR }]}
                 onPress={handleSendOTP}
                 disabled={loading}
+                activeOpacity={0.85}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.buttonText}>Send OTP</Text>
+                  <Text style={styles.buttonText}>Continue</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -161,39 +189,44 @@ export default function CustomerLoginScreen() {
 
           {step === 'otp' && (
             <View style={styles.form}>
-              <Text style={styles.emailDisplay}>📧 {email}</Text>
               {displayOTP ? (
                 <View style={styles.otpHintBox}>
-                  <Text style={styles.otpHintLabel}>Your OTP:</Text>
+                  <Text style={styles.otpHintLabel}>Your verification code</Text>
                   <Text style={styles.otpHintValue}>{displayOTP}</Text>
+                  <Text style={styles.otpHintNote}>Sandbox mode - check email in production</Text>
                 </View>
               ) : null}
-              <TextInput
-                style={styles.input}
-                placeholder="Enter 6-digit OTP"
-                keyboardType="number-pad"
-                maxLength={6}
-                value={otp}
-                onChangeText={setOtp}
-                editable={!loading}
-              />
+              <View style={styles.inputContainer}>
+                <Ionicons name="keypad-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="6-digit code"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  value={otp}
+                  onChangeText={setOtp}
+                  editable={!loading}
+                />
+              </View>
               <TouchableOpacity
                 style={[styles.button, { backgroundColor: APP_CONFIG.PRIMARY_COLOR }]}
                 onPress={handleVerifyOTP}
                 disabled={loading}
+                activeOpacity={0.85}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.buttonText}>Verify OTP</Text>
+                  <Text style={styles.buttonText}>Verify</Text>
                 )}
               </TouchableOpacity>
               <View style={styles.linkRow}>
-                <TouchableOpacity onPress={() => { setStep('email'); setOtp(''); }}>
-                  <Text style={styles.linkText}>Change email</Text>
+                <TouchableOpacity onPress={() => { setStep('email'); setOtp(''); setDisplayOTP(''); }}>
+                  <Text style={[styles.linkText, { color: APP_CONFIG.PRIMARY_COLOR }]}>Change email</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleSendOTP} disabled={loading}>
-                  <Text style={styles.linkText}>Resend OTP</Text>
+                  <Text style={[styles.linkText, { color: APP_CONFIG.PRIMARY_COLOR }]}>Resend code</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -201,18 +234,22 @@ export default function CustomerLoginScreen() {
 
           {step === 'name' && (
             <View style={styles.form}>
-              <Text style={styles.newUserText}>🎉 Creating your account...</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Your Full Name"
-                value={name}
-                onChangeText={setName}
-                editable={!loading}
-              />
+              <View style={styles.inputContainer}>
+                <Ionicons name="person-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Your full name"
+                  placeholderTextColor="#94A3B8"
+                  value={name}
+                  onChangeText={setName}
+                  editable={!loading}
+                />
+              </View>
               <TouchableOpacity
                 style={[styles.button, { backgroundColor: APP_CONFIG.PRIMARY_COLOR }]}
                 onPress={handleSubmitName}
                 disabled={loading}
+                activeOpacity={0.85}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />
@@ -229,110 +266,53 @@ export default function CustomerLoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  keyboardView: {
-    flex: 1,
+  container: { flex: 1, backgroundColor: '#fff' },
+  keyboardView: { flex: 1 },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 12, paddingVertical: 8,
   },
   backButton: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    zIndex: 1,
-    padding: 8,
+    width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
   },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
+  headerTitle: { fontSize: 16, fontWeight: '600', color: '#1E293B' },
+  content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
   iconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center',
     marginBottom: 24,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 8,
+  title: { fontSize: 26, fontWeight: '800', color: '#0F172A', marginBottom: 6 },
+  subtitle: { fontSize: 15, color: '#64748B', textAlign: 'center', marginBottom: 28, lineHeight: 22 },
+  form: { width: '100%' },
+  inputContainer: {
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#E2E8F0',
+    borderRadius: 14, marginBottom: 14, backgroundColor: '#F8FAFC',
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  form: {
-    width: '100%',
-  },
-  input: {
-    width: '100%',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 16,
-    backgroundColor: '#F9FAFB',
-  },
+  inputIcon: { paddingLeft: 16, paddingRight: 4 },
+  input: { flex: 1, padding: 16, paddingLeft: 8, fontSize: 16, color: '#0F172A' },
   button: {
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 16,
+    paddingVertical: 16, borderRadius: 14, width: '100%', alignItems: 'center',
+    marginBottom: 14,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  linkRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-  },
-  linkText: {
-    color: APP_CONFIG.PRIMARY_COLOR,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  emailDisplay: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  linkRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 },
+  linkText: { fontSize: 14, fontWeight: '600' },
   otpHintBox: {
-    backgroundColor: '#D1FAE5',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    alignItems: 'center',
+    backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 14,
+    padding: 16, marginBottom: 16, alignItems: 'center',
   },
-  otpHintLabel: {
-    fontSize: 12,
-    color: '#065F46',
-    marginBottom: 4,
+  otpHintLabel: { fontSize: 12, color: '#166534', marginBottom: 4 },
+  otpHintValue: { fontSize: 28, fontWeight: '800', color: '#059669', letterSpacing: 6 },
+  otpHintNote: { fontSize: 11, color: '#6B7280', marginTop: 6 },
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2',
+    borderWidth: 1, borderColor: '#FECACA', padding: 12, borderRadius: 12, marginBottom: 16, width: '100%',
   },
-  otpHintValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#10B981',
-    letterSpacing: 4,
+  errorBannerText: { fontSize: 13, color: '#DC2626', flex: 1 },
+  successBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F0FDF4',
+    borderWidth: 1, borderColor: '#BBF7D0', padding: 12, borderRadius: 12, marginBottom: 16, width: '100%',
   },
-  newUserText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
+  successBannerText: { fontSize: 13, color: '#059669', flex: 1 },
 });

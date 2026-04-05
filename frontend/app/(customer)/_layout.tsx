@@ -8,11 +8,18 @@ export default function CustomerLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: APP_CONFIG.PRIMARY_COLOR,
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarInactiveTintColor: '#94A3B8',
         tabBarStyle: {
           paddingBottom: 8,
           paddingTop: 8,
           height: 60,
+          backgroundColor: '#fff',
+          borderTopWidth: 1,
+          borderTopColor: '#F3F4F6',
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
         },
       }}
     >

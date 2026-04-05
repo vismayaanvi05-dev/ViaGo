@@ -258,8 +258,40 @@ metadata:
   test_sequence: 1
   run_ui: false
 
+  - task: "Driver Status Update Flow"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/delivery.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Created world-class driver active delivery screen with status update flow. Need to test the PUT /api/delivery/status/{order_id} endpoint accepts picked_up, out_for_delivery, delivered statuses."
+      - working: true
+        agent: "testing"
+        comment: "DRIVER STATUS UPDATE FLOW VERIFIED: Comprehensive testing completed with 100% success rate. Full flow tested: (1) Driver login with credentials (driver@test.com/driver123) - SUCCESS, (2) Get assigned deliveries - found 4 assigned deliveries, (3) Update order status through complete flow: picked_up → out_for_delivery → delivered - ALL STATUS UPDATES SUCCESSFUL. The PUT /api/delivery/status/{order_id} endpoint is working correctly and accepts all required statuses. Driver can successfully manage delivery status updates."
+
+  - task: "Customer Order Tracking"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/customer.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Created customer order tracking screen at /(customer)/order/[id]. Uses GET /api/customer/orders/{order_id}. Need to test this endpoint returns full order details with status."
+      - working: true
+        agent: "testing"
+        comment: "CUSTOMER ORDER TRACKING FLOW VERIFIED: Comprehensive testing completed with 100% success rate. Full flow tested: (1) Customer OTP authentication (test@test.com) - SUCCESS, (2) Create sample order for testing - order created successfully, (3) GET /api/customer/orders - returns customer orders list correctly, (4) GET /api/customer/orders/{order_id} - returns complete order details with status, total_amount, and items. All required fields present in response. Customer order tracking functionality is fully operational."
+
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Driver Status Update Flow"
+    - "Customer Order Tracking"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -332,6 +364,8 @@ agent_communication:
   - agent: "testing"
     message: "Resend email integration testing completed successfully. All 5 requested email flows tested with 100% pass rate: (1) OTP email sending for verified email - working correctly, emails sent via Resend API; (2) OTP email fallback for non-verified emails - working correctly, shows OTP in response when email fails; (3) Customer registration flow with welcome emails - working correctly; (4) Driver creation with credential emails - working correctly, email_sent field indicates success/failure; (5) Driver login unchanged - working correctly. Email service properly handles Resend sandbox restrictions where only verified email (flashfood813@gmail.com) receives emails, others fail gracefully with appropriate error handling. All email templates (OTP, welcome, driver credentials) implemented with proper HTML formatting."
   - agent: "main"
-    message: "Fixed critical ObjectId serialization bug in cart/add endpoint. The bug was in /app/backend/routes/customer.py - when updating existing cart, the MongoDB _id field (ObjectId) was included in the $set operation, causing ValueError. Added cart.pop('_id', None) before update. Verified fix works: 3 consecutive cart adds all succeed (first add, second add, quantity increase). Please retest Cart Management task."
+    message: "Major UI overhaul complete: (1) Created premium app launcher with separate Customer and Driver app cards at index.tsx, (2) Replaced ALL Alert.alert calls in auth and driver screens with inline banners/modals (critical for web), (3) Built world-class Driver app: Home with online/offline toggle, Active with progress bar and status updates, polished Earnings and Profile, (4) Added order tracking navigation from Customer orders list, (5) Fixed API method name mismatch (updateOrderStatus→updateDeliveryStatus), (6) Aligned STATUS_FLOW with backend statuses (out_for_pickup, picked_up, out_for_delivery, delivered). Please test: Driver Status Update Flow and Customer Order Tracking endpoints."
   - agent: "testing"
     message: "CART BUG FIX VERIFICATION COMPLETE: Comprehensive testing of the ObjectId serialization bug fix completed with 100% success rate (16/16 tests passed). The critical cart bug has been SUCCESSFULLY FIXED. Tested complete cart workflow: (1) Customer authentication via OTP, (2) Add first item to cart - creates new cart successfully, (3) Add SECOND item to same cart - THE CRITICAL BUG IS FIXED - no more 500 errors, (4) Add same item again - quantity increases correctly, (5) Get cart - returns correct items and subtotal, (6) Update cart item quantity - working, (7) Remove item from cart - working, (8) Complete E2E order flow - cart to order placement working, (9) Driver authentication and delivery management - all working. The fix (cart.pop('_id', None)) successfully prevents MongoDB ObjectId serialization errors. All backend APIs are fully functional."
+  - agent: "testing"
+    message: "DRIVER STATUS UPDATE & CUSTOMER ORDER TRACKING FLOWS VERIFIED: Both requested flows tested with 100% success rate (10/10 tests passed). DRIVER FLOW: (1) Driver login (driver@test.com/driver123) - SUCCESS, (2) Get assigned deliveries - found 4 deliveries, (3) Status updates through complete flow: picked_up → out_for_delivery → delivered - ALL SUCCESSFUL. PUT /api/delivery/status/{order_id} endpoint working correctly. CUSTOMER FLOW: (1) Customer OTP auth (test@test.com) - SUCCESS, (2) Create sample order - SUCCESS, (3) GET /api/customer/orders - returns orders list correctly, (4) GET /api/customer/orders/{order_id} - returns complete order details with status, total_amount, items. Both flows are fully operational and ready for production use."

@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -14,6 +13,8 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+
+const DRIVER_GREEN = '#10B981';
 
 export default function DriverLoginScreen() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function DriverLoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     setAppMode('driver');
@@ -34,28 +36,33 @@ export default function DriverLoginScreen() {
     }
   }, [isAuthenticated, appMode]);
 
+  const showError = (msg: string) => {
+    setErrorMsg(msg);
+    setTimeout(() => setErrorMsg(''), 4000);
+  };
+
   const handleLogin = async () => {
     if (!email.trim()) {
-      Alert.alert('Email Required', 'Please enter your email address');
+      showError('Please enter your email address');
       return;
     }
     if (!password.trim()) {
-      Alert.alert('Password Required', 'Please enter your password');
+      showError('Please enter your password');
       return;
     }
 
     setLoading(true);
+    setErrorMsg('');
     try {
       const result = await driverLogin(email, password);
       setLoading(false);
 
       if (!result.success) {
-        Alert.alert('Login Failed', result.error || 'Invalid credentials');
+        showError(result.error || 'Invalid credentials');
       }
-      // Successful login will auto-redirect via useEffect
     } catch (error) {
       setLoading(false);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      showError('Something went wrong. Please try again.');
     }
   };
 
@@ -65,23 +72,39 @@ export default function DriverLoginScreen() {
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
-        </TouchableOpacity>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={22} color="#1E293B" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Driver</Text>
+          <View style={{ width: 40 }} />
+        </View>
 
         <View style={styles.content}>
-          <View style={[styles.iconContainer, { backgroundColor: '#10B981' }]}>
-            <Ionicons name="bicycle" size={48} color="#fff" />
+          {/* Icon */}
+          <View style={[styles.iconContainer, { backgroundColor: DRIVER_GREEN }]}>
+            <Ionicons name="bicycle" size={36} color="#fff" />
           </View>
+
           <Text style={styles.title}>Driver Login</Text>
-          <Text style={styles.subtitle}>Login with your credentials provided by admin</Text>
+          <Text style={styles.subtitle}>Sign in with credentials from your admin</Text>
+
+          {/* Error Banner */}
+          {errorMsg ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={16} color="#DC2626" />
+              <Text style={styles.errorBannerText}>{errorMsg}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.form}>
             <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <Ionicons name="mail-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Email Address"
+                placeholder="Email address"
+                placeholderTextColor="#94A3B8"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -92,37 +115,39 @@ export default function DriverLoginScreen() {
             </View>
 
             <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+              <Ionicons name="lock-closed-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Password"
+                placeholderTextColor="#94A3B8"
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
                 editable={!loading}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#6B7280" />
+                <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#94A3B8" />
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity
-              style={styles.button}
+              style={[styles.button, { backgroundColor: DRIVER_GREEN }]}
               onPress={handleLogin}
               disabled={loading}
+              activeOpacity={0.85}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Login</Text>
+                <Text style={styles.buttonText}>Sign In</Text>
               )}
             </TouchableOpacity>
           </View>
 
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle" size={20} color="#3B82F6" />
+            <Ionicons name="information-circle" size={18} color="#3B82F6" />
             <Text style={styles.infoText}>
-              Don't have credentials? Contact your administrator to get your login details.
+              Don't have credentials? Contact your admin to get login details.
             </Text>
           </View>
         </View>
@@ -132,97 +157,45 @@ export default function DriverLoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  keyboardView: {
-    flex: 1,
+  container: { flex: 1, backgroundColor: '#fff' },
+  keyboardView: { flex: 1 },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 12, paddingVertical: 8,
   },
   backButton: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    zIndex: 1,
-    padding: 8,
+    width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
   },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
+  headerTitle: { fontSize: 16, fontWeight: '600', color: '#1E293B' },
+  content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
   iconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center',
     marginBottom: 24,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  form: {
-    width: '100%',
-  },
+  title: { fontSize: 26, fontWeight: '800', color: '#0F172A', marginBottom: 6 },
+  subtitle: { fontSize: 15, color: '#64748B', textAlign: 'center', marginBottom: 28, lineHeight: 22 },
+  form: { width: '100%' },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    marginBottom: 16,
-    backgroundColor: '#F9FAFB',
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#E2E8F0',
+    borderRadius: 14, marginBottom: 14, backgroundColor: '#F8FAFC',
   },
-  inputIcon: {
-    padding: 16,
-  },
-  input: {
-    flex: 1,
-    padding: 16,
-    paddingLeft: 0,
-    fontSize: 16,
-  },
-  eyeIcon: {
-    padding: 16,
-  },
+  inputIcon: { paddingLeft: 16, paddingRight: 4 },
+  input: { flex: 1, padding: 16, paddingLeft: 8, fontSize: 16, color: '#0F172A' },
+  eyeIcon: { padding: 16 },
   button: {
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    width: '100%',
-    alignItems: 'center',
-    backgroundColor: '#10B981',
-    marginTop: 8,
+    paddingVertical: 16, borderRadius: 14, width: '100%', alignItems: 'center',
+    marginTop: 4,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   infoBox: {
-    flexDirection: 'row',
-    backgroundColor: '#EFF6FF',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 32,
-    alignItems: 'flex-start',
-    gap: 12,
+    flexDirection: 'row', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE',
+    padding: 14, borderRadius: 14, marginTop: 28, alignItems: 'flex-start', gap: 10,
   },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#1E40AF',
-    lineHeight: 20,
+  infoText: { flex: 1, fontSize: 13, color: '#1E40AF', lineHeight: 19 },
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2',
+    borderWidth: 1, borderColor: '#FECACA', padding: 12, borderRadius: 12, marginBottom: 16, width: '100%',
   },
+  errorBannerText: { fontSize: 13, color: '#DC2626', flex: 1 },
 });

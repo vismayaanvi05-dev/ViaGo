@@ -7,11 +7,18 @@ export default function DeliveryLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#10B981',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarInactiveTintColor: '#94A3B8',
         tabBarStyle: {
           paddingBottom: 8,
           paddingTop: 8,
           height: 60,
+          backgroundColor: '#fff',
+          borderTopWidth: 1,
+          borderTopColor: '#F1F5F9',
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
         },
       }}
     >

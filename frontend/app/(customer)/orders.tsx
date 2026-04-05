@@ -70,11 +70,20 @@ export default function OrdersScreen() {
     });
   };
 
+  const isTrackable = (status: string) => {
+    return !['delivered', 'cancelled'].includes(status);
+  };
+
   const renderOrder = ({ item }: { item: any }) => {
     const statusConfig = getStatusConfig(item.status);
+    const trackable = isTrackable(item.status);
     
     return (
-      <View style={styles.orderCard}>
+      <TouchableOpacity
+        style={styles.orderCard}
+        onPress={() => router.push(`/(customer)/order/${item.id}`)}
+        activeOpacity={0.8}
+      >
         <View style={styles.orderHeader}>
           <View>
             <Text style={styles.orderNumber}>#{item.order_number}</Text>
@@ -109,16 +118,23 @@ export default function OrdersScreen() {
         <View style={styles.orderFooter}>
           <View>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalAmount}>₹{item.total_amount}</Text>
+            <Text style={styles.totalAmount}>{'\u20B9'}{item.total_amount}</Text>
           </View>
-          <View style={styles.paymentBadge}>
-            <Ionicons name="cash-outline" size={14} color="#6B7280" />
-            <Text style={styles.paymentText}>
-              {item.payment_method === 'cod' ? 'Cash' : 'Paid'}
-            </Text>
-          </View>
+          {trackable ? (
+            <View style={[styles.trackBadge, { backgroundColor: APP_CONFIG.PRIMARY_COLOR }]}>
+              <Ionicons name="navigate" size={14} color="#fff" />
+              <Text style={styles.trackText}>Track Order</Text>
+            </View>
+          ) : (
+            <View style={styles.paymentBadge}>
+              <Ionicons name="cash-outline" size={14} color="#6B7280" />
+              <Text style={styles.paymentText}>
+                {item.payment_method === 'cod' ? 'Cash' : 'Paid'}
+              </Text>
+            </View>
+          )}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -267,6 +283,15 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   paymentText: { fontSize: 13, color: '#6B7280', fontWeight: '500' },
+  trackBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
+  },
+  trackText: { fontSize: 13, color: '#fff', fontWeight: '700' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   emptyIcon: {
     width: 100,
