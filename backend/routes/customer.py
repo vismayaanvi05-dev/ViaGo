@@ -76,6 +76,57 @@ async def get_app_config(
     
     return config
 
+
+
+@router.get("/app-settings")
+async def get_app_settings(
+    tenant_id: str = None,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Get app settings including privacy policy, terms, and support details
+    Used by mobile apps to display legal and support information
+    """
+    # If no tenant_id provided, get the first tenant (for single-tenant deployments)
+    # In production, this should be determined by app domain or user's tenant
+    if not tenant_id:
+        tenant = await db.tenants.find_one({}, {"_id": 0, "id": 1})
+        if tenant:
+            tenant_id = tenant["id"]
+    
+    if not tenant_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Tenant ID required"
+        )
+    
+    # Get tenant settings
+    settings = await db.tenant_settings.find_one(
+        {"tenant_id": tenant_id},
+        {"_id": 0}
+    )
+    
+    if not settings:
+        # Return default values if no settings found
+        return {
+            "privacy_policy": "Privacy policy not configured yet.",
+            "terms_and_conditions": "Terms and conditions not configured yet.",
+            "support_email": "",
+            "support_phone": "",
+            "support_website": "",
+            "support_hours": "9:00 AM - 6:00 PM (Mon-Sat)"
+        }
+    
+    # Return only the fields mobile apps need
+    return {
+        "privacy_policy": settings.get("privacy_policy", ""),
+        "terms_and_conditions": settings.get("terms_and_conditions", ""),
+        "support_email": settings.get("support_email", ""),
+        "support_phone": settings.get("support_phone", ""),
+        "support_website": settings.get("support_website", ""),
+        "support_hours": settings.get("support_hours", "9:00 AM - 6:00 PM (Mon-Sat)")
+    }
+
 # ==================== STORE DISCOVERY (MULTI-MODULE) ====================
 
 @router.get("/stores")

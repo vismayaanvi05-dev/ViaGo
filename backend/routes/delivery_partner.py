@@ -27,6 +27,54 @@ def calculate_distance(lat1, lng1, lat2, lng2):
     
     return R * c
 
+
+
+# ==================== APP SETTINGS ====================
+
+@router.get("/app-settings")
+async def get_app_settings(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Get app settings including privacy policy, terms, and support details
+    """
+    await require_role(current_user, ["delivery_partner"])
+    
+    # Get tenant_id from current user
+    tenant_id = current_user.get("tenant_id")
+    
+    if not tenant_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Tenant ID not found for user"
+        )
+    
+    # Get tenant settings
+    settings = await db.tenant_settings.find_one(
+        {"tenant_id": tenant_id},
+        {"_id": 0}
+    )
+    
+    if not settings:
+        return {
+            "privacy_policy": "Privacy policy not configured yet.",
+            "terms_and_conditions": "Terms and conditions not configured yet.",
+            "support_email": "",
+            "support_phone": "",
+            "support_website": "",
+            "support_hours": "9:00 AM - 6:00 PM (Mon-Sat)"
+        }
+    
+    return {
+        "privacy_policy": settings.get("privacy_policy", ""),
+        "terms_and_conditions": settings.get("terms_and_conditions", ""),
+        "support_email": settings.get("support_email", ""),
+        "support_phone": settings.get("support_phone", ""),
+        "support_website": settings.get("support_website", ""),
+        "support_hours": settings.get("support_hours", "9:00 AM - 6:00 PM (Mon-Sat)")
+    }
+
 # ==================== DELIVERY PARTNER PROFILE ====================
 
 @router.get("/profile")
