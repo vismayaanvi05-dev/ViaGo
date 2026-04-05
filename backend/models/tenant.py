@@ -16,6 +16,8 @@ class Tenant(BaseModel):
     business_name: Optional[str] = None
     address: Optional[str] = None
     town: Optional[str] = None
+    lat: Optional[float] = None  # Latitude for location-based filtering
+    lng: Optional[float] = None  # Longitude for location-based filtering
     
     logo_url: Optional[str] = None
     domain: Optional[str] = None
@@ -33,6 +35,8 @@ class TenantCreate(BaseModel):
     business_name: Optional[str] = None
     address: Optional[str] = None
     town: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     
     logo_url: Optional[str] = None
     domain: Optional[str] = None
@@ -47,6 +51,8 @@ class TenantUpdate(BaseModel):
     business_name: Optional[str] = None
     address: Optional[str] = None
     town: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     
     logo_url: Optional[str] = None
     domain: Optional[str] = None

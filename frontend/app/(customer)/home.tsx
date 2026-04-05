@@ -164,12 +164,12 @@ export default function CustomerHomeScreen() {
               <View style={styles.storeInfo}>
                 <View style={styles.storeNameRow}>
                   <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
-                  {store.rating && (
+                  {(store.avg_rating > 0 || store.rating > 0) ? (
                     <View style={styles.ratingTag}>
                       <Ionicons name="star" size={11} color="#F59E0B" />
-                      <Text style={styles.ratingText}>{store.rating}</Text>
+                      <Text style={styles.ratingText}>{store.avg_rating || store.rating}</Text>
                     </View>
-                  )}
+                  ) : null}
                 </View>
                 <Text style={styles.storeDesc} numberOfLines={1}>
                   {store.description || store.cuisine_types?.join(', ') || 'Quality assured'}
@@ -177,22 +177,22 @@ export default function CustomerHomeScreen() {
                 <View style={styles.storeMeta}>
                   <View style={styles.metaItem}>
                     <Ionicons name="time-outline" size={13} color="#9CA3AF" />
-                    <Text style={styles.metaText}>{store.average_prep_time_minutes || 30} min</Text>
+                    <Text style={styles.metaText}>{store.preparation_time_minutes || store.average_prep_time_minutes || 30} min</Text>
                   </View>
-                  {store.distance_km != null && (
+                  {store.distance_km != null ? (
                     <>
                       <Text style={styles.metaSep}>{'\u2022'}</Text>
                       <View style={styles.metaItem}>
                         <Text style={styles.metaText}>{store.distance_km.toFixed(1)} km</Text>
                       </View>
                     </>
-                  )}
-                  {store.minimum_order_value > 0 && (
+                  ) : null}
+                  {(store.minimum_order_value != null && store.minimum_order_value > 0) ? (
                     <>
                       <Text style={styles.metaSep}>{'\u2022'}</Text>
                       <Text style={styles.metaText}>Min {'\u20B9'}{store.minimum_order_value}</Text>
                     </>
-                  )}
+                  ) : null}
                 </View>
                 {store.is_deliverable === false && (
                   <View style={styles.outOfRange}>

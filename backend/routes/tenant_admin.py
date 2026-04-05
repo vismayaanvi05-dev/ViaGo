@@ -766,8 +766,8 @@ async def delete_vendor_admin(
 class DeliveryPartnerCreate(BaseModel):
     name: str
     email: str
+    password: str  # Password for delivery partner login
     phone: Optional[str] = None
-    password: Optional[str] = None  # Password set by tenant admin
     vehicle_type: str = "bike"  # bike, car, truck
     vehicle_number: Optional[str] = None
 
@@ -805,6 +805,7 @@ async def create_delivery_partner(
     )
     
     partner_dict = new_partner.model_dump()
+    partner_dict["password"] = get_password_hash(partner_data.password)  # Hash password
     partner_dict["vehicle_type"] = partner_data.vehicle_type
     partner_dict["vehicle_number"] = partner_data.vehicle_number
     partner_dict["created_at"] = partner_dict["created_at"].isoformat()
@@ -813,11 +814,9 @@ async def create_delivery_partner(
     partner_dict["current_order_id"] = None
     partner_dict["current_location"] = None
     
-    # Hash and store password if provided by tenant admin
-    if partner_data.password:
-        partner_dict["password"] = get_password_hash(partner_data.password)
-    
     await db.users.insert_one(partner_dict)
+    
+    # Delivery partner can now login with email + password
     
     return {
         "success": True,
@@ -911,6 +910,11 @@ async def update_delivery_partner(
     # Allowed fields
     allowed_fields = ["name", "email", "phone", "vehicle_type", "vehicle_number", "status"]
     update_data = {k: v for k, v in partner_data.items() if k in allowed_fields}
+    
+    # Handle password update separately (optional)
+    if "password" in partner_data and partner_data["password"]:
+        from utils.helpers import get_password_hash
+        update_data["password"] = get_password_hash(partner_data["password"])
     
     if update_data:
         update_data["updated_at"] = datetime.utcnow().isoformat()

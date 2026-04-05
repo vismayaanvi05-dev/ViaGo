@@ -134,6 +134,7 @@ async def discover_stores(
     lat: float,
     lng: float,
     module: str = None,  # 'food', 'grocery', 'laundry'
+    town: str = None,  # Customer's town/village
     search: str = None,
     skip: int = 0,
     limit: int = 20,
@@ -142,11 +143,27 @@ async def discover_stores(
     """
     Discover stores based on location and module
     Module-first architecture: filter stores by service type
+    Location-based: Only show stores from tenants in customer's location
     """
+    from utils.helpers import get_tenant_ids_by_location
+    
+    # Get matching tenant IDs based on customer location
+    matching_tenant_ids = await get_tenant_ids_by_location(db, lat, lng, town)
+    
+    if not matching_tenant_ids:
+        # No tenants found in this location
+        return {
+            "stores": [],
+            "total": 0,
+            "module": module,
+            "message": "No services available in your area yet"
+        }
+    
     # Build query
     query = {
         "is_active": True,
-        "is_accepting_orders": True
+        "is_accepting_orders": True,
+        "tenant_id": {"$in": matching_tenant_ids}  # Filter by tenant location
     }
     
     # Filter by module
@@ -905,6 +922,7 @@ async def browse_restaurants(
     db: AsyncIOMotorDatabase = Depends(get_db),
     lat: float = None,
     lng: float = None,
+    town: str = None,
     cuisine_type: str = None,
     search: str = None,
     skip: int = 0,
@@ -912,14 +930,26 @@ async def browse_restaurants(
 ):
     """
     Browse available restaurants (food module)
+    Location-based: Only show restaurants from tenants in customer's location
     """
     await require_role(current_user, ["customer"])
+    
+    from utils.helpers import get_tenant_ids_by_location
+    
+    # Get matching tenant IDs based on customer location
+    matching_tenant_ids = []
+    if lat and lng:
+        matching_tenant_ids = await get_tenant_ids_by_location(db, lat, lng, town)
     
     query = {
         "type": "restaurant",
         "is_active": True,
         "is_accepting_orders": True
     }
+    
+    # Filter by tenant location if available
+    if matching_tenant_ids:
+        query["tenant_id"] = {"$in": matching_tenant_ids}
     
     if cuisine_type:
         query["cuisine_types"] = cuisine_type

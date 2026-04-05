@@ -69,6 +69,40 @@ def calculate_distance(lat1: float, lng1: float, lat2: float, lng2: float) -> fl
     distance = R * c
     return round(distance, 2)
 
+async def get_tenant_ids_by_location(db, lat: float = None, lng: float = None, town: str = None, radius_km: float = 50):
+    """
+    Get tenant IDs that match the customer's location
+    - First tries exact town match
+    - Then tries radius-based match using lat/lng
+    - Returns list of matching tenant IDs
+    """
+    matching_tenant_ids = []
+    
+    # Try exact town match first
+    if town:
+        tenants = await db.tenants.find(
+            {"town": {"$regex": f"^{town}$", "$options": "i"}, "status": "active"},
+            {"_id": 0, "id": 1}
+        ).to_list(100)
+        matching_tenant_ids = [t["id"] for t in tenants]
+        if matching_tenant_ids:
+            return matching_tenant_ids
+    
+    # If no town match, try radius-based match
+    if lat and lng:
+        tenants = await db.tenants.find(
+            {"status": "active", "lat": {"$exists": True}, "lng": {"$exists": True}},
+            {"_id": 0, "id": 1, "lat": 1, "lng": 1}
+        ).to_list(100)
+        
+        for tenant in tenants:
+            if tenant.get("lat") and tenant.get("lng"):
+                distance = calculate_distance(lat, lng, tenant["lat"], tenant["lng"])
+                if distance <= radius_km:
+                    matching_tenant_ids.append(tenant["id"])
+    
+    return matching_tenant_ids
+
 def calculate_commission(total_amount: float, commission_percentage: float) -> float:
     """
     Calculate commission amount
