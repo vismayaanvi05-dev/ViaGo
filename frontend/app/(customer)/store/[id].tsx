@@ -94,30 +94,21 @@ export default function StoreDetailsScreen() {
 
   const handleIncrement = async (item: any) => {
     const currentQty = getItemQuantity(item.id);
-    setAddingItem(item.id);
-    try {
-      if (currentQty === 0) {
-        await handleAddToCart(item);
-      } else {
-        await updateQuantity(item.id, currentQty + 1);
-      }
-    } finally {
+    if (currentQty === 0) {
+      setAddingItem(item.id);
+      await handleAddToCart(item);
       setAddingItem(null);
+    } else {
+      updateQuantity(item.id, currentQty + 1);
     }
   };
 
   const handleDecrement = async (item: any) => {
     const currentQty = getItemQuantity(item.id);
-    setAddingItem(item.id);
-    try {
-      if (currentQty <= 1) {
-        await removeItem(item.id);
-        showToast(`${item.name} removed`);
-      } else {
-        await updateQuantity(item.id, currentQty - 1);
-      }
-    } finally {
-      setAddingItem(null);
+    if (currentQty <= 1) {
+      removeItem(item.id);
+    } else {
+      updateQuantity(item.id, currentQty - 1);
     }
   };
 

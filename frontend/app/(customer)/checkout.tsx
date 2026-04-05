@@ -28,6 +28,7 @@ export default function CheckoutScreen() {
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [showAddAddress, setShowAddAddress] = useState(false);
+  const [orderError, setOrderError] = useState('');
   const [newAddress, setNewAddress] = useState({ 
     address_type: 'home',
     address_line: '', 
@@ -78,13 +79,14 @@ export default function CheckoutScreen() {
 
   const handlePlaceOrder = async () => {
     if (!selectedAddress) {
-      Alert.alert('Select Address', 'Please select a delivery address');
+      setOrderError('Please select a delivery address');
       return;
     }
     if (!cart?.items?.length) {
-      Alert.alert('Empty Cart', 'Your cart is empty');
+      setOrderError('Your cart is empty');
       return;
     }
+    setOrderError('');
 
     try {
       setPlacing(true);
@@ -105,15 +107,11 @@ export default function CheckoutScreen() {
       
       if (response.data.success) {
         await clearCart();
-        Alert.alert(
-          '🎉 Order Placed!',
-          `Your order #${response.data.order_number} has been placed successfully!`,
-          [{ text: 'View Orders', onPress: () => router.replace('/(customer)/orders') }]
-        );
+        router.replace('/(customer)/orders');
       }
     } catch (error: any) {
       console.error('Error placing order:', error);
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to place order');
+      setOrderError(error.response?.data?.detail || 'Failed to place order');
     } finally {
       setPlacing(false);
     }
@@ -334,6 +332,12 @@ export default function CheckoutScreen() {
 
         {/* Place Order Button */}
         <View style={styles.bottomBar}>
+          {orderError ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={16} color="#EF4444" />
+              <Text style={styles.errorBannerText}>{orderError}</Text>
+            </View>
+          ) : null}
           <TouchableOpacity
             style={[
               styles.placeOrderBtn,
@@ -348,7 +352,7 @@ export default function CheckoutScreen() {
               <>
                 <Text style={styles.placeOrderText}>Place Order</Text>
                 <View style={styles.placeOrderAmount}>
-                  <Text style={styles.placeOrderAmountText}>₹{total.toFixed(2)}</Text>
+                  <Text style={styles.placeOrderAmountText}>{'\u20B9'}{total.toFixed(0)}</Text>
                 </View>
               </>
             )}
@@ -495,4 +499,14 @@ const styles = StyleSheet.create({
   placeOrderText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   placeOrderAmount: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 },
   placeOrderAmountText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 10,
+    gap: 8,
+  },
+  errorBannerText: { fontSize: 13, color: '#EF4444', fontWeight: '500', flex: 1 },
 });
