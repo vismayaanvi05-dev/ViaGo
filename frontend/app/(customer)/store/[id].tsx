@@ -163,7 +163,7 @@ export default function StoreDetailsScreen() {
         {/* Store Hero */}
         <View style={[styles.heroCard, { borderBottomColor: moduleConfig.color + '30' }]}>
           <View style={[styles.heroIcon, { backgroundColor: moduleConfig.color + '15' }]}>
-            <Text style={{ fontSize: 40 }}>{moduleConfig.icon}</Text>
+            <Ionicons name={moduleConfig.icon as any} size={40} color={moduleConfig.color} />
           </View>
           <Text style={styles.heroName}>{store.name}</Text>
           {store.description ? <Text style={styles.heroDesc}>{store.description}</Text> : null}

@@ -23,7 +23,10 @@ export default function OrdersScreen() {
   const loadOrders = useCallback(async () => {
     try {
       const response = await customerAPI.getOrders(0, 50);
-      setOrders(response.data.orders || []);
+      const data = response.data;
+      // Handle both formats: {orders: [...]} or direct array
+      const ordersList = Array.isArray(data) ? data : (data.orders || []);
+      setOrders(ordersList);
     } catch (error) {
       console.error('Error loading orders:', error);
     } finally {

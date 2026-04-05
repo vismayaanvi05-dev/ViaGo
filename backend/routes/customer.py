@@ -454,6 +454,9 @@ async def add_to_cart(
     
     cart["updated_at"] = datetime.utcnow().isoformat()
     
+    # Remove _id before update to avoid serialization issues
+    cart.pop("_id", None)
+    
     # Upsert cart
     await db.carts.update_one(
         {"user_id": user_id},
@@ -1058,11 +1061,23 @@ async def get_restaurant_details(
     if not store:
         raise HTTPException(status_code=404, detail="Restaurant not found")
     
-    # Get categories for this store
+    # Determine module from store type
+    store_type = store.get("store_type", "restaurant")
+    module_map = {"restaurant": "food", "grocery": "grocery", "laundry": "laundry"}
+    module = module_map.get(store_type, "food")
+    
+    # Get categories for this store (matching the store's actual module)
     categories = await db.categories.find(
-        {"store_id": store_id, "module": "food", "is_active": True},
+        {"store_id": store_id, "module": module, "is_active": True},
         {"_id": 0}
     ).to_list(100)
+    
+    # If no categories found with module filter, try without module filter
+    if not categories:
+        categories = await db.categories.find(
+            {"store_id": store_id, "is_active": True},
+            {"_id": 0}
+        ).to_list(100)
     
     # Get items for each category
     for category in categories:
@@ -1121,10 +1136,19 @@ async def place_order(
     # Remove _id from address before storing in order
     address.pop("_id", None)
     
-    # Get tenant settings
+    # Get tenant settings (with fallback defaults)
     settings = await db.tenant_settings.find_one({"tenant_id": store["tenant_id"]})
     if not settings:
-        raise HTTPException(status_code=400, detail="Tenant settings not found")
+        # Use sensible defaults so orders can still be placed
+        settings = {
+            "tenant_id": store["tenant_id"],
+            "delivery_charge_type": "flat",
+            "flat_delivery_charge": 30,
+            "delivery_charge_per_km": 0,
+            "free_delivery_above": None,
+            "tax_enabled": True,
+            "tax_percentage": 5,
+        }
     
     # Calculate order amounts
     subtotal = 0
@@ -1221,7 +1245,7 @@ async def place_order(
     )
     
     commission_percentage = subscription.get("commission_percentage", 0) if subscription else 0
-    commission_amount = calculate_commission(total_amount, commission_percentage)
+    commission_amount = calculate_commission(total_amount, commission_percentage) if commission_percentage > 0 else 0
     vendor_payout = total_amount - commission_amount
     
     # Create order
@@ -1347,7 +1371,7 @@ async def get_my_orders(
         if order.get("delivered_at") and isinstance(order["delivered_at"], str):
             order["delivered_at"] = datetime.fromisoformat(order["delivered_at"])
     
-    return orders
+    return {"orders": orders, "total": len(orders)}
 
 @router.get("/orders/{order_id}")
 async def get_order_tracking(

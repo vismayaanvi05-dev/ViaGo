@@ -28,6 +28,8 @@ export default function CustomerLoginScreen() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  const [fallbackOtp, setFallbackOtp] = useState('');
+
   useEffect(() => {
     setAppMode('customer');
   }, []);
@@ -56,6 +58,7 @@ export default function CustomerLoginScreen() {
 
     setLoading(true);
     setErrorMsg('');
+    setFallbackOtp('');
     try {
       const result = await sendOTP(email);
       setLoading(false);
@@ -64,10 +67,13 @@ export default function CustomerLoginScreen() {
         if (result.email_sent) {
           setSuccessMsg(`Verification code sent to ${email}`);
         } else {
-          showError('Could not deliver email. Please verify your email address and try again.');
-          return;
+          // Email delivery failed but OTP is valid - show it as fallback
+          setSuccessMsg('Email delivery unavailable. Use the code shown below.');
+          if (result.otp) {
+            setFallbackOtp(result.otp);
+          }
         }
-        setTimeout(() => setSuccessMsg(''), 4000);
+        setTimeout(() => setSuccessMsg(''), 6000);
         setStep('otp');
       } else {
         showError(result.error || 'Failed to send OTP');
@@ -194,6 +200,13 @@ export default function CustomerLoginScreen() {
 
           {step === 'otp' && (
             <View style={styles.form}>
+              {fallbackOtp ? (
+                <View style={styles.otpFallbackBanner}>
+                  <Ionicons name="key-outline" size={16} color="#8B5CF6" />
+                  <Text style={styles.otpFallbackLabel}>Your verification code:</Text>
+                  <Text style={styles.otpFallbackCode}>{fallbackOtp}</Text>
+                </View>
+              ) : null}
               <View style={styles.inputContainer}>
                 <Ionicons name="keypad-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
                 <TextInput
@@ -306,4 +319,14 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#BBF7D0', padding: 12, borderRadius: 12, marginBottom: 16, width: '100%',
   },
   successBannerText: { fontSize: 13, color: '#059669', flex: 1 },
+  otpFallbackBanner: {
+    flexDirection: 'column', alignItems: 'center', gap: 4,
+    backgroundColor: '#F5F3FF', borderWidth: 1.5, borderColor: '#DDD6FE',
+    padding: 16, borderRadius: 14, marginBottom: 16, width: '100%',
+  },
+  otpFallbackLabel: { fontSize: 12, color: '#6D28D9', fontWeight: '500' },
+  otpFallbackCode: {
+    fontSize: 28, fontWeight: '800', color: '#8B5CF6',
+    letterSpacing: 8, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
 });

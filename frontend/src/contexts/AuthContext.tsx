@@ -71,6 +71,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return { 
         success: true, 
         email_sent: response.data.email_sent !== false,
+        otp: response.data.otp,
         message: response.data.message
       };
     } catch (error: any) {
