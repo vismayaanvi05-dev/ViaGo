@@ -45,10 +45,14 @@ async def get_available_deliveries(
 ):
     await require_role(current_user, ["delivery_partner"])
     
+    # Multi-tenant: only show orders from driver's tenant
+    tenant_id = current_user.get("tenant_id")
     query = {
         "$or": [{"status": "ready"}, {"status": "packed"}, {"status": "confirmed"}, {"status": "placed"}],
         "delivery_partner_id": None
     }
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     if module:
         query["module"] = module
     

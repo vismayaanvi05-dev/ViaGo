@@ -234,6 +234,11 @@ async def create_driver(
     
     # Create driver user
     driver_id = str(uuid.uuid4())
+    
+    # Assign to first available tenant (multi-tenant SaaS)
+    tenant = await db.tenants.find_one({}, {"_id": 0, "id": 1})
+    tenant_id = tenant["id"] if tenant else None
+    
     driver = {
         "id": driver_id,
         "name": driver_data.name,
@@ -241,6 +246,7 @@ async def create_driver(
         "password": get_password_hash(driver_data.password),
         "phone": driver_data.phone,
         "role": "delivery_partner",
+        "tenant_id": tenant_id,
         "vehicle_type": driver_data.vehicle_type,
         "vehicle_number": driver_data.vehicle_number,
         "status": "active",

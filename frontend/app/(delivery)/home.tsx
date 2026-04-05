@@ -144,7 +144,8 @@ export default function DeliveryHomeScreen() {
             </View>
             {storePhone !== 'N/A' && (
               <TouchableOpacity style={styles.callBtn} onPress={() => callPhone(storePhone)}>
-                <Ionicons name="call" size={16} color={G} />
+                <Ionicons name="call" size={14} color={G} />
+                <Text style={styles.callBtnText}>{storePhone}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -168,7 +169,8 @@ export default function DeliveryHomeScreen() {
             </View>
             {customerPhone !== 'N/A' && (
               <TouchableOpacity style={styles.callBtn} onPress={() => callPhone(customerPhone)}>
-                <Ionicons name="call" size={16} color="#3B82F6" />
+                <Ionicons name="call" size={14} color="#3B82F6" />
+                <Text style={[styles.callBtnText, { color: '#3B82F6' }]}>{customerPhone}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -402,9 +404,11 @@ const styles = StyleSheet.create({
   distanceText: { fontSize: 12, color: G, fontWeight: '600', marginTop: 2 },
   landmarkText: { fontSize: 12, color: '#F59E0B', fontWeight: '500', marginTop: 2 },
   callBtn: {
-    width: 36, height: 36, borderRadius: 10, backgroundColor: '#F1F5F9',
-    alignItems: 'center', justifyContent: 'center', marginLeft: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8,
+    backgroundColor: '#F1F5F9', marginLeft: 8, maxWidth: 140,
   },
+  callBtnText: { fontSize: 11, fontWeight: '600', color: G },
   routeConnector: { paddingLeft: 4, paddingVertical: 2 },
   routeDashLine: { width: 2, height: 20, backgroundColor: '#E2E8F0', marginLeft: 3 },
 

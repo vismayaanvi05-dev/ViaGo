@@ -221,7 +221,8 @@ export default function ActiveDeliveriesScreen() {
                     </View>
                     {storePhone !== 'N/A' && (
                       <TouchableOpacity style={[styles.callBtnSmall, { backgroundColor: G + '15' }]} onPress={() => callPhone(storePhone)}>
-                        <Ionicons name="call" size={16} color={G} />
+                        <Ionicons name="call" size={14} color={G} />
+                        <Text style={[styles.callBtnLabel, { color: G }]}>{storePhone}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -242,7 +243,8 @@ export default function ActiveDeliveriesScreen() {
                     </View>
                     {customerPhone !== 'N/A' && (
                       <TouchableOpacity style={[styles.callBtnSmall, { backgroundColor: '#3B82F615' }]} onPress={() => callPhone(customerPhone)}>
-                        <Ionicons name="call" size={16} color="#3B82F6" />
+                        <Ionicons name="call" size={14} color="#3B82F6" />
+                        <Text style={[styles.callBtnLabel, { color: '#3B82F6' }]}>{customerPhone}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -424,9 +426,10 @@ const styles = StyleSheet.create({
   locAddr: { fontSize: 12, color: '#64748B', marginTop: 1, lineHeight: 16 },
   locLandmark: { fontSize: 11, color: '#F59E0B', fontWeight: '500', marginTop: 2 },
   callBtnSmall: {
-    width: 36, height: 36, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, maxWidth: 140,
   },
+  callBtnLabel: { fontSize: 11, fontWeight: '600' },
 
   // Items toggle
   itemsToggle: {
