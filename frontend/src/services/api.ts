@@ -98,4 +98,6 @@ export const adminAPI = {
   getDriver: (id: string) => apiClient.get(`/auth/admin/drivers/${id}`),
   updateDriver: (id: string, data: any) => apiClient.put(`/auth/admin/drivers/${id}`, data),
   deleteDriver: (id: string) => apiClient.delete(`/auth/admin/drivers/${id}`),
+  getSettings: () => apiClient.get('/admin/settings'),
+  updateSettings: (data: any) => apiClient.put('/admin/settings', data),
 };

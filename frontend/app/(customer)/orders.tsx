@@ -10,10 +10,12 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { customerAPI } from '@/src/services/api';
 import { APP_CONFIG } from '@/src/config';
 
 export default function OrdersScreen() {
+  const router = useRouter();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -124,6 +126,9 @@ export default function OrdersScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={22} color="#1F2937" />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>My Orders</Text>
         </View>
         <View style={styles.loadingContainer}>
@@ -136,6 +141,9 @@ export default function OrdersScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={22} color="#1F2937" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>My Orders</Text>
         <Text style={styles.orderCount}>{orders.length} orders</Text>
       </View>
@@ -180,7 +188,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: '#1F2937' },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: '#1F2937', flex: 1 },
+  backBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 8,
+  },
   orderCount: { fontSize: 14, color: '#6B7280' },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   listContainer: { padding: 16 },

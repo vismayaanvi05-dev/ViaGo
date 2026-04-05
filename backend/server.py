@@ -28,6 +28,7 @@ api_router = APIRouter(prefix="/api")
 from routes.auth import router as auth_router
 from routes.customer import router as customer_router
 from routes.delivery import router as delivery_router
+from routes.admin import router as admin_router
 
 # Health check endpoint
 @api_router.get("/")
@@ -50,6 +51,7 @@ async def health_check():
 app.include_router(auth_router, prefix="/api")
 app.include_router(customer_router, prefix="/api")
 app.include_router(delivery_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
 
 # Include the main API router
 app.include_router(api_router)

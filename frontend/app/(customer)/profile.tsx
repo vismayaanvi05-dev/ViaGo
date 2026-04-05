@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,12 @@ import {
   TextInput,
   ActivityIndicator,
   Modal,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { adminAPI } from '@/src/services/api';
 import { APP_CONFIG } from '@/src/config';
 
 export default function ProfileScreen() {
@@ -20,10 +22,25 @@ export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showContent, setShowContent] = useState<{ title: string; content: string } | null>(null);
   const [editName, setEditName] = useState(user?.name || '');
   const [editPhone, setEditPhone] = useState(user?.phone || '');
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [tenantSettings, setTenantSettings] = useState<any>(null);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const response = await adminAPI.getSettings();
+      setTenantSettings(response.data);
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -47,6 +64,56 @@ export default function ProfileScreen() {
     }
   };
 
+  const openUrl = (url: string) => {
+    if (url) Linking.openURL(url);
+  };
+
+  const handleSupportItem = (type: string) => {
+    if (!tenantSettings) {
+      showToast('Loading...');
+      return;
+    }
+
+    switch (type) {
+      case 'help':
+        if (tenantSettings.help_center_url) {
+          openUrl(tenantSettings.help_center_url);
+        } else {
+          setShowContent({
+            title: 'Help Center',
+            content: tenantSettings.help_center_content || 'No help content configured.',
+          });
+        }
+        break;
+      case 'contact':
+        setShowContent({
+          title: 'Contact Us',
+          content: `Email: ${tenantSettings.contact_email || 'N/A'}\nPhone: ${tenantSettings.contact_phone || 'N/A'}\nAddress: ${tenantSettings.contact_address || 'N/A'}`,
+        });
+        break;
+      case 'terms':
+        if (tenantSettings.terms_conditions_url) {
+          openUrl(tenantSettings.terms_conditions_url);
+        } else {
+          setShowContent({
+            title: 'Terms & Conditions',
+            content: tenantSettings.terms_conditions_content || 'No terms configured.',
+          });
+        }
+        break;
+      case 'privacy':
+        if (tenantSettings.privacy_policy_url) {
+          openUrl(tenantSettings.privacy_policy_url);
+        } else {
+          setShowContent({
+            title: 'Privacy Policy',
+            content: tenantSettings.privacy_policy_content || 'No privacy policy configured.',
+          });
+        }
+        break;
+    }
+  };
+
   const menuSections = [
     {
       title: 'Account',
@@ -57,19 +124,12 @@ export default function ProfileScreen() {
       ],
     },
     {
-      title: 'Preferences',
-      items: [
-        { icon: 'notifications-outline' as const, title: 'Notifications', onPress: () => showToast('Coming soon') },
-        { icon: 'language-outline' as const, title: 'Language', onPress: () => showToast('Coming soon') },
-      ],
-    },
-    {
       title: 'Support',
       items: [
-        { icon: 'help-circle-outline' as const, title: 'Help Center', onPress: () => showToast('Coming soon') },
-        { icon: 'chatbubble-outline' as const, title: 'Contact Us', onPress: () => showToast('Coming soon') },
-        { icon: 'document-text-outline' as const, title: 'Terms & Conditions', onPress: () => showToast('Coming soon') },
-        { icon: 'shield-checkmark-outline' as const, title: 'Privacy Policy', onPress: () => showToast('Coming soon') },
+        { icon: 'help-circle-outline' as const, title: 'Help Center', onPress: () => handleSupportItem('help') },
+        { icon: 'chatbubble-outline' as const, title: 'Contact Us', onPress: () => handleSupportItem('contact') },
+        { icon: 'document-text-outline' as const, title: 'Terms & Conditions', onPress: () => handleSupportItem('terms') },
+        { icon: 'shield-checkmark-outline' as const, title: 'Privacy Policy', onPress: () => handleSupportItem('privacy') },
       ],
     },
   ];
@@ -196,6 +256,23 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
+      {/* Content Viewer (Help, Terms, Privacy) */}
+      <Modal visible={!!showContent} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.contentModal}>
+            <View style={styles.editHeader}>
+              <Text style={styles.editTitle}>{showContent?.title}</Text>
+              <TouchableOpacity onPress={() => setShowContent(null)}>
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.contentText}>{showContent?.content}</Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Toast */}
       {toast && (
         <View style={styles.toast}>
@@ -262,10 +339,8 @@ const styles = StyleSheet.create({
 
   // Overlay & Modals
   overlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center', justifyContent: 'center', padding: 24,
-    zIndex: 999,
   },
   modal: {
     backgroundColor: '#fff', borderRadius: 20, padding: 28,
@@ -309,6 +384,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 8,
   },
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+
+  // Content Modal
+  contentModal: {
+    backgroundColor: '#fff', borderRadius: 20, padding: 24,
+    width: '100%', maxWidth: 360, maxHeight: '70%',
+  },
+  contentScroll: { maxHeight: 400 },
+  contentText: { fontSize: 15, color: '#374151', lineHeight: 24 },
 
   // Toast
   toast: {

@@ -34,7 +34,8 @@ export default function CheckoutScreen() {
     address_line: '', 
     city: '', 
     state: 'Maharashtra', 
-    pincode: '' 
+    pincode: '',
+    phone: '',
   });
 
   useEffect(() => {
@@ -57,8 +58,8 @@ export default function CheckoutScreen() {
   };
 
   const handleAddAddress = async () => {
-    if (!newAddress.address_line || !newAddress.city || !newAddress.pincode) {
-      Alert.alert('Missing Info', 'Please fill all address fields');
+    if (!newAddress.address_line || !newAddress.city || !newAddress.pincode || !newAddress.phone) {
+      setOrderError('Please fill all address fields including phone number');
       return;
     }
     try {
@@ -70,10 +71,10 @@ export default function CheckoutScreen() {
       });
       await loadAddresses();
       setShowAddAddress(false);
-      setNewAddress({ address_type: 'home', address_line: '', city: '', state: 'Maharashtra', pincode: '' });
-      Alert.alert('Success', 'Address added successfully');
+      setNewAddress({ address_type: 'home', address_line: '', city: '', state: 'Maharashtra', pincode: '', phone: '' });
+      setOrderError('');
     } catch (error) {
-      Alert.alert('Error', 'Failed to add address');
+      setOrderError('Failed to add address');
     }
   };
 
@@ -210,6 +211,13 @@ export default function CheckoutScreen() {
                     onChangeText={(text) => setNewAddress({ ...newAddress, pincode: text })}
                   />
                 </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Phone Number"
+                  keyboardType="phone-pad"
+                  value={newAddress.phone}
+                  onChangeText={(text) => setNewAddress({ ...newAddress, phone: text })}
+                />
                 <TouchableOpacity style={styles.saveAddressBtn} onPress={handleAddAddress}>
                   <Text style={styles.saveAddressBtnText}>Save Address</Text>
                 </TouchableOpacity>

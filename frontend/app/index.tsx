@@ -58,6 +58,14 @@ export default function HomeScreen() {
       </View>
 
       <Text style={styles.footer}>v{APP_CONFIG.VERSION}</Text>
+
+      <TouchableOpacity
+        style={styles.adminLink}
+        onPress={() => router.push('/admin-settings')}
+      >
+        <Ionicons name="settings-outline" size={16} color="#9CA3AF" />
+        <Text style={styles.adminLinkText}>Tenant Admin Portal</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -116,5 +124,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#9CA3AF',
     marginTop: 40,
+  },
+  adminLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 16,
+    paddingVertical: 10,
+  },
+  adminLinkText: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    textDecorationLine: 'underline',
   },
 });
