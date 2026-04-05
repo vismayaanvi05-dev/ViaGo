@@ -4,6 +4,7 @@ from models.tenant import TenantSettings, TenantSettingsUpdate
 from models.store import Store, StoreCreate, StoreUpdate, Category, CategoryCreate, CategoryUpdate
 from models.item import Item, ItemCreate, ItemUpdate, ItemVariant, ItemVariantCreate, ItemVariantUpdate, AddOn, AddOnCreate, AddOnUpdate
 from middleware.auth import get_current_user, require_role, verify_tenant_access, get_tenant_id
+from utils.default_legal_content import get_default_privacy_policy, get_default_terms_and_conditions
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
@@ -62,8 +63,12 @@ async def get_tenant_settings(
     settings = await db.tenant_settings.find_one({"tenant_id": tenant_id}, {"_id": 0})
     
     if not settings:
-        # Create default settings if not exists
-        default_settings = TenantSettings(tenant_id=tenant_id)
+        # Create default settings if not exists with default legal content
+        default_settings = TenantSettings(
+            tenant_id=tenant_id,
+            privacy_policy=get_default_privacy_policy(),
+            terms_and_conditions=get_default_terms_and_conditions()
+        )
         settings_dict = default_settings.model_dump()
         settings_dict["created_at"] = settings_dict["created_at"].isoformat()
         settings_dict["updated_at"] = settings_dict["updated_at"].isoformat()

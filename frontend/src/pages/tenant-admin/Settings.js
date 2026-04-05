@@ -6,8 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Save, DollarSign, TrendingUp, Percent } from 'lucide-react';
+import { Save, DollarSign, TrendingUp, Percent, FileText, Shield, HelpCircle, Phone, Mail, Globe } from 'lucide-react';
 
 const Settings = () => {
   const { toast } = useToast();
@@ -24,6 +26,13 @@ const Settings = () => {
     default_admin_markup_percentage: 0,
     currency: 'INR',
     minimum_order_value: 0,
+    // Legal & Support
+    privacy_policy: '',
+    terms_and_conditions: '',
+    support_email: '',
+    support_phone: '',
+    support_website: '',
+    support_hours: '9:00 AM - 6:00 PM (Mon-Sat)',
   });
 
   useEffect(() => {
@@ -89,7 +98,15 @@ const Settings = () => {
         </Button>
       </div>
 
-      <div className="space-y-6">
+      <Tabs defaultValue="business" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-3">
+          <TabsTrigger value="business">Business Settings</TabsTrigger>
+          <TabsTrigger value="legal">Legal & Policies</TabsTrigger>
+          <TabsTrigger value="support">Help & Support</TabsTrigger>
+        </TabsList>
+
+        {/* Business Settings Tab */}
+        <TabsContent value="business" className="space-y-6">
         {/* Delivery Charge Settings */}
         <Card>
           <CardHeader>
@@ -293,15 +310,145 @@ const Settings = () => {
             </div>
           </CardContent>
         </Card>
+        </TabsContent>
+
+        {/* Legal & Policies Tab */}
+        <TabsContent value="legal" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-orange-600" />
+                Privacy Policy
+              </CardTitle>
+              <CardDescription>
+                Define how you handle user data and privacy
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                value={settings.privacy_policy}
+                onChange={(e) => updateSetting('privacy_policy', e.target.value)}
+                placeholder="Enter your privacy policy..."
+                rows={12}
+                className="font-mono text-sm"
+              />
+              <p className="text-sm text-gray-500 mt-2">
+                This will be displayed in the mobile apps under Settings → Privacy Policy
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-orange-600" />
+                Terms & Conditions
+              </CardTitle>
+              <CardDescription>
+                Set the rules and guidelines for using your service
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                value={settings.terms_and_conditions}
+                onChange={(e) => updateSetting('terms_and_conditions', e.target.value)}
+                placeholder="Enter your terms and conditions..."
+                rows={12}
+                className="font-mono text-sm"
+              />
+              <p className="text-sm text-gray-500 mt-2">
+                This will be displayed in the mobile apps under Settings → Terms & Conditions
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Help & Support Tab */}
+        <TabsContent value="support" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <HelpCircle className="h-5 w-5 text-orange-600" />
+                Support Contact Information
+              </CardTitle>
+              <CardDescription>
+                Provide contact details for customer support
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="support_email" className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Support Email
+                </Label>
+                <Input
+                  id="support_email"
+                  type="email"
+                  value={settings.support_email}
+                  onChange={(e) => updateSetting('support_email', e.target.value)}
+                  placeholder="support@yourbusiness.com"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="support_phone" className="flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  Support Phone
+                </Label>
+                <Input
+                  id="support_phone"
+                  type="tel"
+                  value={settings.support_phone}
+                  onChange={(e) => updateSetting('support_phone', e.target.value)}
+                  placeholder="+1 (555) 123-4567"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="support_website" className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  Support Website
+                </Label>
+                <Input
+                  id="support_website"
+                  type="url"
+                  value={settings.support_website}
+                  onChange={(e) => updateSetting('support_website', e.target.value)}
+                  placeholder="https://support.yourbusiness.com"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="support_hours">Support Hours</Label>
+                <Input
+                  id="support_hours"
+                  type="text"
+                  value={settings.support_hours}
+                  onChange={(e) => updateSetting('support_hours', e.target.value)}
+                  placeholder="9:00 AM - 6:00 PM (Mon-Sat)"
+                />
+              </div>
+
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-900 mb-2">📱 Where this appears:</h4>
+                <div className="space-y-1 text-sm text-gray-600">
+                  <p>• Customer App: Help & Support section</p>
+                  <p>• Delivery App: Contact Support section</p>
+                  <p>• Customers can call, email, or visit your website</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Save Button */}
-        <div className="flex justify-end">
+        <div className="flex justify-end pt-4">
           <Button onClick={handleSave} disabled={saving} size="lg">
             <Save className="h-4 w-4 mr-2" />
             {saving ? 'Saving...' : 'Save All Settings'}
           </Button>
         </div>
-      </div>
+      </Tabs>
     </div>
   );
 };

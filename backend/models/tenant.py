@@ -76,6 +76,14 @@ class TenantSettings(BaseModel):
     currency: str = "INR"
     minimum_order_value: float = 0.0
     
+    # Legal & Support Settings
+    privacy_policy: str = ""
+    terms_and_conditions: str = ""
+    support_email: str = ""
+    support_phone: str = ""
+    support_website: str = ""
+    support_hours: str = "9:00 AM - 6:00 PM (Mon-Sat)"
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -118,3 +126,10 @@ class TenantSettingsUpdate(BaseModel):
     default_admin_markup_percentage: Optional[float] = None
     currency: Optional[str] = None
     minimum_order_value: Optional[float] = None
+    # Legal & Support
+    privacy_policy: Optional[str] = None
+    terms_and_conditions: Optional[str] = None
+    support_email: Optional[str] = None
+    support_phone: Optional[str] = None
+    support_website: Optional[str] = None
+    support_hours: Optional[str] = None
