@@ -454,16 +454,20 @@ async def add_to_cart(
 ):
     """
     Add item to cart
-    Rule: One cart = One store
+    Rule: One cart = One store (or virtual store for grocery/laundry)
     """
     await require_role(current_user, ["customer"])
     user_id = current_user["user_id"]
+    
+    store_id = cart_item.get("store_id")
+    item_id = cart_item.get("item_id")
+    module = cart_item.get("module", "food")
     
     # Get current cart
     cart = await db.carts.find_one({"user_id": user_id})
     
     # Check if cart exists and is from different store
-    if cart and cart.get("store_id") != cart_item.get("store_id"):
+    if cart and cart.get("store_id") != store_id:
         return {
             "success": False,
             "error": "cart_conflict",
@@ -471,46 +475,77 @@ async def add_to_cart(
             "current_store_id": cart.get("store_id")
         }
     
-    # Validate store
-    store = await db.stores.find_one({"id": cart_item.get("store_id")})
-    if not store:
-        raise HTTPException(status_code=404, detail="Store not found")
+    # Determine if this is a virtual store (grocery/laundry tenant-level)
+    is_virtual = store_id and ("_grocery" in store_id or "_laundry" in store_id)
+    tenant_id = None
+    item_data = None
     
-    # Validate item
-    item = await db.items.find_one({"id": cart_item.get("item_id")})
-    if not item or not item.get("is_available"):
-        raise HTTPException(status_code=400, detail="Item not available")
+    if is_virtual and "_grocery" in store_id:
+        module = "grocery"
+        tenant_id = store_id.replace("_grocery", "")
+        # Validate item from grocery_products
+        item_data = await db.grocery_products.find_one({"id": item_id})
+        if not item_data or not item_data.get("is_available", True):
+            raise HTTPException(status_code=400, detail="Grocery item not available")
+        item_name = item_data.get("name", "")
+        item_price = item_data.get("selling_price") or item_data.get("mrp", 0)
+        
+    elif is_virtual and "_laundry" in store_id:
+        module = "laundry"
+        tenant_id = store_id.replace("_laundry", "")
+        # Validate item from laundry_items
+        item_data = await db.laundry_items.find_one({"id": item_id})
+        if not item_data or not item_data.get("is_active", True):
+            raise HTTPException(status_code=400, detail="Laundry item not available")
+        item_name = item_data.get("name", "")
+        # Get pricing
+        pricing = await db.laundry_pricing.find_one({"item_id": item_id, "is_active": True})
+        item_price = pricing.get("price", 0) if pricing else 0
+        
+    else:
+        module = "food"
+        # Validate store
+        store = await db.stores.find_one({"id": store_id})
+        if not store:
+            raise HTTPException(status_code=404, detail="Store not found")
+        tenant_id = store.get("tenant_id")
+        
+        # Validate item
+        item_data = await db.items.find_one({"id": item_id})
+        if not item_data or not item_data.get("is_available"):
+            raise HTTPException(status_code=400, detail="Item not available")
+        item_name = item_data.get("name", "")
+        item_price = item_data.get("base_price", item_data.get("price", 0))
     
     # Create or update cart
     if not cart:
         cart = {
             "id": str(uuid.uuid4()),
             "user_id": user_id,
-            "store_id": cart_item.get("store_id"),
-            "tenant_id": store.get("tenant_id"),
-            "module": store.get("store_type"),
+            "store_id": store_id,
+            "tenant_id": tenant_id,
+            "module": module,
             "items": [],
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat()
         }
     
     # Check if item already in cart
-    existing_item = next((i for i in cart["items"] if i["item_id"] == cart_item["item_id"] 
+    existing_item = next((i for i in cart["items"] if i["item_id"] == item_id 
                          and i.get("variant_id") == cart_item.get("variant_id")), None)
     
     if existing_item:
-        # Update quantity
         existing_item["quantity"] += cart_item.get("quantity", 1)
     else:
-        # Add new item
         cart["items"].append({
             "id": str(uuid.uuid4()),
-            "item_id": cart_item["item_id"],
-            "item_name": item["name"],
+            "item_id": item_id,
+            "item_name": item_name,
             "quantity": cart_item.get("quantity", 1),
-            "unit_price": item.get("base_price", item.get("price", 0)),
+            "unit_price": item_price,
             "variant_id": cart_item.get("variant_id"),
             "add_ons": cart_item.get("add_ons", []),
+            "module": module,
             "added_at": datetime.utcnow().isoformat()
         })
     
