@@ -2,11 +2,11 @@ import apiClient from './api';
 
 export const deliveryAPI = {
   // Auth
-  sendOTP: (phone) =>
-    apiClient.post('/auth/send-otp', { phone, role: 'delivery_partner' }),
+  sendOTP: (email) =>
+    apiClient.post('/auth/send-otp', { email, role: 'delivery_partner' }),
 
-  verifyOTP: (phone, otp, name) =>
-    apiClient.post('/auth/verify-otp', { phone, otp, role: 'delivery_partner', name }),
+  verifyOTP: (email, otp, name) =>
+    apiClient.post('/auth/verify-otp', { email, otp, role: 'delivery_partner', name }),
 
   // Profile
   getProfile: () =>

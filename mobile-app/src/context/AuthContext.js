@@ -29,18 +29,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const sendOTP = async (phone) => {
+  const sendOTP = async (email) => {
     try {
-      await customerAPI.sendOTP(phone);
+      await customerAPI.sendOTP(email);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.response?.data?.detail || 'Failed to send OTP' };
     }
   };
 
-  const verifyOTP = async (phone, otp, name = null) => {
+  const verifyOTP = async (email, otp, name = null) => {
     try {
-      const response = await customerAPI.verifyOTP(phone, otp, name);
+      const response = await customerAPI.verifyOTP(email, otp, name);
       const { access_token, user: userData } = response.data;
       
       await AsyncStorage.setItem('authToken', access_token);

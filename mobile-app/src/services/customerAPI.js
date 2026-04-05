@@ -81,9 +81,9 @@ export const customerAPI = {
     apiClient.post('/customer/reviews', data),
 
   // Auth
-  sendOTP: (phone) =>
-    apiClient.post('/auth/send-otp', { phone, role: 'customer' }),
+  sendOTP: (email) =>
+    apiClient.post('/auth/send-otp', { email, role: 'customer' }),
 
-  verifyOTP: (phone, otp, name) =>
-    apiClient.post('/auth/verify-otp', { phone, otp, role: 'customer', name }),
+  verifyOTP: (email, otp, name) =>
+    apiClient.post('/auth/verify-otp', { email, otp, role: 'customer', name }),
 };

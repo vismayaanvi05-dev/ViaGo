@@ -15,26 +15,32 @@ import { APP_CONFIG } from '../../config';
 
 const OTPLoginScreen = () => {
   const { sendOTP, verifyOTP } = useAuth();
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [name, setName] = useState('');
-  const [step, setStep] = useState(1); // 1: Phone, 2: OTP, 3: Name (for new users)
+  const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: Name (for new users)
   const [loading, setLoading] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
 
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleSendOTP = async () => {
-    if (phone.length !== 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+    if (!validateEmail(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
 
     setLoading(true);
-    const result = await sendOTP(phone);
+    const result = await sendOTP(email);
     setLoading(false);
 
     if (result.success) {
-      Alert.alert('Success', 'OTP sent to your phone number');
-      setStep(2);
+      Alert.alert('Success', 'OTP sent to your email', [
+        { text: 'OK', onPress: () => setStep(2) }
+      ]);
     } else {
       Alert.alert('Error', result.error || 'Failed to send OTP');
     }
@@ -47,7 +53,7 @@ const OTPLoginScreen = () => {
     }
 
     setLoading(true);
-    const result = await verifyOTP(phone, otp, isNewUser ? name : null);
+    const result = await verifyOTP(email, otp, isNewUser ? name : null);
     setLoading(false);
 
     if (result.success) {
@@ -71,13 +77,13 @@ const OTPLoginScreen = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
-        <Text style={styles.logo}>🚀</Text>
+        <Text style={styles.logo}>📧</Text>
         <Text style={styles.title}>Welcome to {APP_CONFIG.APP_NAME}</Text>
         <Text style={styles.subtitle}>
           {step === 1
-            ? 'Enter your phone number to continue'
+            ? 'Enter your email to continue'
             : step === 2
-            ? 'Enter the OTP sent to your phone'
+            ? 'Enter the OTP sent to your email'
             : 'Tell us your name'}
         </Text>
 
@@ -85,11 +91,12 @@ const OTPLoginScreen = () => {
           <>
             <TextInput
               style={styles.input}
-              placeholder="Phone Number"
-              keyboardType="phone-pad"
-              maxLength={10}
-              value={phone}
-              onChangeText={setPhone}
+              placeholder="Email Address"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={email}
+              onChangeText={setEmail}
             />
             <TouchableOpacity
               style={styles.button}
@@ -102,11 +109,15 @@ const OTPLoginScreen = () => {
                 <Text style={styles.buttonText}>Send OTP</Text>
               )}
             </TouchableOpacity>
+            <Text style={styles.hintText}>
+              We'll send a 6-digit code to verify your email
+            </Text>
           </>
         )}
 
         {step === 2 && (
           <>
+            <Text style={styles.emailDisplay}>{email}</Text>
             <TextInput
               style={styles.input}
               placeholder="Enter 6-digit OTP"
@@ -127,7 +138,10 @@ const OTPLoginScreen = () => {
               )}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setStep(1)}>
-              <Text style={styles.linkText}>Change phone number</Text>
+              <Text style={styles.linkText}>Change email address</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSendOTP} style={styles.resendButton}>
+              <Text style={styles.linkText}>Resend OTP</Text>
             </TouchableOpacity>
           </>
         )}
@@ -197,6 +211,7 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     marginBottom: 16,
+    backgroundColor: '#F9FAFB',
   },
   button: {
     backgroundColor: APP_CONFIG.PRIMARY_COLOR,
@@ -222,6 +237,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     padding: 20,
+  },
+  hintText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  emailDisplay: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+    fontWeight: '500',
+  },
+  resendButton: {
+    marginTop: 8,
   },
 });
 
