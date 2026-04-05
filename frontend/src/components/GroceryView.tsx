@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, RefreshControl, Alert,
+  ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { customerAPI } from '@/src/services/api';
 import { useLocation } from '@/src/contexts/LocationContext';
 import { useCart } from '@/src/contexts/CartContext';
-
-const TENANT_ID = 'b331f4e9-00f2-495b-bc46-3e43ef7fb008';
-const VIRTUAL_STORE_ID = `${TENANT_ID}_grocery`;
+import CartConflictModal from './CartConflictModal';
 
 interface GroceryProduct {
   id: string;
@@ -34,17 +32,19 @@ interface GroceryCategory {
 
 export default function GroceryView({ searchQuery }: { searchQuery?: string }) {
   const { location, address } = useLocation();
-  const { addToCart, getItemQuantity, updateQuantity, removeItem, cart, clearCart } = useCart();
+  const { addToCart, getItemQuantity, updateQuantity, removeItem, cart, clearCart, store: cartStore, loadCart } = useCart();
   const [categories, setCategories] = useState<GroceryCategory[]>([]);
   const [allProducts, setAllProducts] = useState<GroceryProduct[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [addingItem, setAddingItem] = useState<string | null>(null);
+  const [showConflict, setShowConflict] = useState<{ itemToAdd: GroceryProduct } | null>(null);
 
-  // Derive virtual store id from first product's tenant_id
-  const virtualStoreId = allProducts[0]?.tenant_id
-    ? `${allProducts[0].tenant_id}_grocery`
-    : VIRTUAL_STORE_ID;
+  const getVirtualStoreId = (product?: GroceryProduct) => {
+    const tenantId = product?.tenant_id || allProducts[0]?.tenant_id || '';
+    return `${tenantId}_grocery`;
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -67,6 +67,7 @@ export default function GroceryView({ searchQuery }: { searchQuery?: string }) {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
+    await loadCart();
     setRefreshing(false);
   };
 
@@ -75,54 +76,60 @@ export default function GroceryView({ searchQuery }: { searchQuery?: string }) {
     ? allProducts
     : allProducts.filter(p => p.category_id === selectedCategory);
 
-  const handleAdd = async (product: GroceryProduct) => {
-    const storeId = product.tenant_id ? `${product.tenant_id}_grocery` : virtualStoreId;
+  // ─── Cart conflict & add logic (same as food store) ───
+  const handleAddToCart = async (product: GroceryProduct) => {
+    const storeId = getVirtualStoreId(product);
+    // Check store conflict using cart state
+    if (cart && cart.items && cart.items.length > 0 && cart.store_id && cart.store_id !== storeId) {
+      setShowConflict({ itemToAdd: product });
+      return;
+    }
+    await addItemToCart(product);
+  };
+
+  const handleClearAndAdd = async () => {
+    if (!showConflict) return;
+    const product = showConflict.itemToAdd;
+    setShowConflict(null);
+    await clearCart();
+    await addItemToCart(product);
+  };
+
+  const addItemToCart = async (product: GroceryProduct) => {
+    const storeId = getVirtualStoreId(product);
+    setAddingItem(product.id);
     try {
       const result = await addToCart(storeId, product.id, 1);
       if (result && result.conflict) {
-        Alert.alert(
-          'Replace cart items?',
-          result.message || 'Your cart contains items from a different category. Clear cart to add this item?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Clear & Add',
-              style: 'destructive',
-              onPress: async () => {
-                await clearCart();
-                await addToCart(storeId, product.id, 1);
-              },
-            },
-          ]
-        );
+        setShowConflict({ itemToAdd: product });
       }
     } catch (e) {
       console.error('Add to cart error:', e);
+    } finally {
+      setAddingItem(null);
     }
   };
 
   const handleIncrement = async (product: GroceryProduct) => {
-    const storeId = product.tenant_id ? `${product.tenant_id}_grocery` : virtualStoreId;
     const qty = getItemQuantity(product.id);
-    const cartItem = cart?.items?.find(i => i.item_id === product.id);
-    if (cartItem) {
-      await updateQuantity(cartItem.item_id, qty + 1);
+    if (qty === 0) {
+      await handleAddToCart(product);
     } else {
-      await addToCart(storeId, product.id, 1);
+      await updateQuantity(product.id, qty + 1);
     }
   };
 
   const handleDecrement = async (product: GroceryProduct) => {
     const qty = getItemQuantity(product.id);
-    const cartItem = cart?.items?.find(i => i.item_id === product.id);
-    if (cartItem) {
-      if (qty <= 1) {
-        await removeItem(cartItem.item_id);
-      } else {
-        await updateQuantity(cartItem.item_id, qty - 1);
-      }
+    if (qty <= 1) {
+      await removeItem(product.id);
+    } else {
+      await updateQuantity(product.id, qty - 1);
     }
   };
+
+  // Current cart store name for conflict modal
+  const currentCartName = cartStore?.name || (cart?.store_id || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
 
   if (loading) {
     return (
@@ -146,106 +153,121 @@ export default function GroceryView({ searchQuery }: { searchQuery?: string }) {
   }
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#10B981']} />}
-    >
-      {/* Category Filter Chips */}
+    <>
       <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chipsRow}
-        contentContainerStyle={styles.chipsContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#10B981']} />}
       >
-        <TouchableOpacity
-          style={[styles.chip, selectedCategory === 'all' && styles.chipActive]}
-          onPress={() => setSelectedCategory('all')}
+        {/* Category Filter Chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipsRow}
+          contentContainerStyle={styles.chipsContent}
         >
-          <Text style={[styles.chipText, selectedCategory === 'all' && styles.chipTextActive]}>
-            All ({allProducts.length})
-          </Text>
-        </TouchableOpacity>
-        {categories.map(cat => {
-          const count = (cat.products || []).length;
-          const isActive = selectedCategory === cat.id;
-          return (
-            <TouchableOpacity
-              key={cat.id}
-              style={[styles.chip, isActive && styles.chipActive]}
-              onPress={() => setSelectedCategory(cat.id)}
-            >
-              <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                {cat.name} ({count})
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {/* Product List */}
-      <View style={styles.productList}>
-        {displayProducts.map(product => {
-          const qty = getItemQuantity(product.id);
-          const outOfStock = product.current_stock != null && product.current_stock <= 0;
-          const hasDiscount = product.discount_percentage > 0;
-          const price = product.selling_price || product.mrp;
-
-          return (
-            <View key={product.id} style={[styles.productCard, outOfStock && styles.productCardOOS]}>
-              {/* Product Icon */}
-              <View style={styles.productIconWrap}>
-                <Ionicons name="leaf" size={22} color="#10B981" />
-              </View>
-
-              {/* Product Info */}
-              <View style={styles.productInfo}>
-                <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
-                <Text style={styles.productUnit}>
-                  {product.unit_value} {product.unit_type}
-                  {product.brand ? ` · ${product.brand}` : ''}
+          <TouchableOpacity
+            style={[styles.chip, selectedCategory === 'all' && styles.chipActive]}
+            onPress={() => setSelectedCategory('all')}
+          >
+            <Text style={[styles.chipText, selectedCategory === 'all' && styles.chipTextActive]}>
+              All ({allProducts.length})
+            </Text>
+          </TouchableOpacity>
+          {categories.map(cat => {
+            const count = (cat.products || []).length;
+            const isActive = selectedCategory === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                style={[styles.chip, isActive && styles.chipActive]}
+                onPress={() => setSelectedCategory(cat.id)}
+              >
+                <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
+                  {cat.name} ({count})
                 </Text>
-                <View style={styles.priceRow}>
-                  <Text style={styles.price}>{'\u20B9'}{price}</Text>
-                  {hasDiscount && (
-                    <>
-                      <Text style={styles.mrpStrike}>{'\u20B9'}{product.mrp}</Text>
-                      <View style={styles.discountPill}>
-                        <Text style={styles.discountText}>{product.discount_percentage}% OFF</Text>
-                      </View>
-                    </>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* Product List */}
+        <View style={styles.productList}>
+          {displayProducts.map(product => {
+            const qty = getItemQuantity(product.id);
+            const outOfStock = product.current_stock != null && product.current_stock <= 0;
+            const hasDiscount = product.discount_percentage > 0;
+            const price = product.selling_price || product.mrp;
+            const isAdding = addingItem === product.id;
+
+            return (
+              <View key={product.id} style={[styles.productCard, outOfStock && styles.productCardOOS]}>
+                <View style={styles.productIconWrap}>
+                  <Ionicons name="leaf" size={22} color="#10B981" />
+                </View>
+                <View style={styles.productInfo}>
+                  <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
+                  <Text style={styles.productUnit}>
+                    {product.unit_value} {product.unit_type}
+                    {product.brand ? ` · ${product.brand}` : ''}
+                  </Text>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.price}>{'\u20B9'}{price}</Text>
+                    {hasDiscount && (
+                      <>
+                        <Text style={styles.mrpStrike}>{'\u20B9'}{product.mrp}</Text>
+                        <View style={styles.discountPill}>
+                          <Text style={styles.discountText}>{product.discount_percentage}% OFF</Text>
+                        </View>
+                      </>
+                    )}
+                  </View>
+                </View>
+                <View style={styles.actionCol}>
+                  {outOfStock ? (
+                    <View style={styles.oosTag}>
+                      <Text style={styles.oosText}>Out of stock</Text>
+                    </View>
+                  ) : qty === 0 ? (
+                    <TouchableOpacity
+                      style={styles.addBtn}
+                      onPress={() => handleAddToCart(product)}
+                      disabled={isAdding}
+                    >
+                      {isAdding ? (
+                        <ActivityIndicator size="small" color="#10B981" />
+                      ) : (
+                        <Text style={styles.addBtnText}>ADD</Text>
+                      )}
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.qtyControl}>
+                      <TouchableOpacity style={styles.qtyBtn} onPress={() => handleDecrement(product)}>
+                        <Ionicons name="remove" size={16} color="#10B981" />
+                      </TouchableOpacity>
+                      <Text style={styles.qtyNum}>{qty}</Text>
+                      <TouchableOpacity style={styles.qtyBtn} onPress={() => handleIncrement(product)}>
+                        <Ionicons name="add" size={16} color="#10B981" />
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
               </View>
+            );
+          })}
+        </View>
+        <View style={{ height: 60 }} />
+      </ScrollView>
 
-              {/* Add / Qty Controls */}
-              <View style={styles.actionCol}>
-                {outOfStock ? (
-                  <View style={styles.oosTag}>
-                    <Text style={styles.oosText}>Out of stock</Text>
-                  </View>
-                ) : qty === 0 ? (
-                  <TouchableOpacity style={styles.addBtn} onPress={() => handleAdd(product)}>
-                    <Text style={styles.addBtnText}>ADD</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.qtyControl}>
-                    <TouchableOpacity style={styles.qtyBtn} onPress={() => handleDecrement(product)}>
-                      <Ionicons name="remove" size={16} color="#10B981" />
-                    </TouchableOpacity>
-                    <Text style={styles.qtyNum}>{qty}</Text>
-                    <TouchableOpacity style={styles.qtyBtn} onPress={() => handleIncrement(product)}>
-                      <Ionicons name="add" size={16} color="#10B981" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            </View>
-          );
-        })}
-      </View>
-
-      <View style={{ height: 60 }} />
-    </ScrollView>
+      {/* Cart Conflict Modal — same as food store */}
+      <CartConflictModal
+        visible={!!showConflict}
+        currentStoreName={currentCartName}
+        newStoreName="Grocery"
+        accentColor="#10B981"
+        onKeepCurrent={() => setShowConflict(null)}
+        onClearAndAdd={handleClearAndAdd}
+      />
+    </>
   );
 }
 
@@ -259,8 +281,6 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 17, fontWeight: '600', color: '#1F2937', marginBottom: 4 },
   emptySub: { fontSize: 13, color: '#9CA3AF' },
-
-  // Category Chips
   chipsRow: { marginBottom: 12 },
   chipsContent: { paddingHorizontal: 4, gap: 8 },
   chip: {
@@ -271,8 +291,6 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: '#10B981', borderColor: '#10B981' },
   chipText: { fontSize: 13, fontWeight: '600', color: '#6B7280' },
   chipTextActive: { color: '#fff' },
-
-  // Product List
   productList: { gap: 1 },
   productCard: {
     flexDirection: 'row', alignItems: 'center',
@@ -290,30 +308,21 @@ const styles = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   price: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
   mrpStrike: { fontSize: 13, color: '#9CA3AF', textDecorationLine: 'line-through' },
-  discountPill: {
-    backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
-  },
+  discountPill: { backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   discountText: { fontSize: 10, fontWeight: '700', color: '#16A34A' },
-
-  // Action column
   actionCol: { marginLeft: 12, alignItems: 'center' },
   addBtn: {
     borderWidth: 1.5, borderColor: '#10B981', borderRadius: 8,
     paddingHorizontal: 20, paddingVertical: 8, backgroundColor: '#10B98108',
+    minWidth: 70, alignItems: 'center',
   },
   addBtnText: { fontSize: 14, fontWeight: '700', color: '#10B981' },
   qtyControl: {
     flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#10B981', borderRadius: 8,
-    overflow: 'hidden',
+    borderWidth: 1.5, borderColor: '#10B981', borderRadius: 8, overflow: 'hidden',
   },
-  qtyBtn: {
-    width: 32, height: 32, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#10B98110',
-  },
+  qtyBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: '#10B98110' },
   qtyNum: { fontSize: 14, fontWeight: '700', color: '#10B981', minWidth: 24, textAlign: 'center' },
-  oosTag: {
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#FEF2F2',
-  },
+  oosTag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#FEF2F2' },
   oosText: { fontSize: 11, fontWeight: '600', color: '#DC2626' },
 });

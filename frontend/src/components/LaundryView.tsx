@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, RefreshControl, Alert,
+  ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { customerAPI } from '@/src/services/api';
 import { useLocation } from '@/src/contexts/LocationContext';
 import { useCart } from '@/src/contexts/CartContext';
-
-const TENANT_ID = 'b331f4e9-00f2-495b-bc46-3e43ef7fb008';
-const VIRTUAL_STORE_ID = `${TENANT_ID}_laundry`;
+import CartConflictModal from './CartConflictModal';
 
 const SERVICE_ICONS: Record<string, string> = {
   'wash': 'water',
@@ -50,17 +48,19 @@ interface LaundryService {
 
 export default function LaundryView({ searchQuery }: { searchQuery?: string }) {
   const { location, address } = useLocation();
-  const { addToCart, getItemQuantity, updateQuantity, removeItem, cart, clearCart } = useCart();
+  const { addToCart, getItemQuantity, updateQuantity, removeItem, cart, clearCart, store: cartStore, loadCart } = useCart();
   const [services, setServices] = useState<LaundryService[]>([]);
   const [allItems, setAllItems] = useState<LaundryItem[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [addingItem, setAddingItem] = useState<string | null>(null);
+  const [showConflict, setShowConflict] = useState<{ itemToAdd: LaundryItem } | null>(null);
 
-  // Derive virtual store id from first item's tenant_id
-  const virtualStoreId = allItems[0]?.tenant_id
-    ? `${allItems[0].tenant_id}_laundry`
-    : VIRTUAL_STORE_ID;
+  const getVirtualStoreId = (item?: LaundryItem) => {
+    const tenantId = item?.tenant_id || allItems[0]?.tenant_id || '';
+    return `${tenantId}_laundry`;
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -83,6 +83,7 @@ export default function LaundryView({ searchQuery }: { searchQuery?: string }) {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
+    await loadCart();
     setRefreshing(false);
   };
 
@@ -94,54 +95,60 @@ export default function LaundryView({ searchQuery }: { searchQuery?: string }) {
     ? allItems
     : allItems.filter(i => (i.category || 'General') === selectedFilter);
 
-  const handleAdd = async (item: LaundryItem) => {
-    const storeId = item.tenant_id ? `${item.tenant_id}_laundry` : virtualStoreId;
+  // ─── Cart conflict & add logic (same as food store) ───
+  const handleAddToCart = async (item: LaundryItem) => {
+    const storeId = getVirtualStoreId(item);
+    // Check store conflict using cart state
+    if (cart && cart.items && cart.items.length > 0 && cart.store_id && cart.store_id !== storeId) {
+      setShowConflict({ itemToAdd: item });
+      return;
+    }
+    await addItemToCart(item);
+  };
+
+  const handleClearAndAdd = async () => {
+    if (!showConflict) return;
+    const item = showConflict.itemToAdd;
+    setShowConflict(null);
+    await clearCart();
+    await addItemToCart(item);
+  };
+
+  const addItemToCart = async (item: LaundryItem) => {
+    const storeId = getVirtualStoreId(item);
+    setAddingItem(item.id);
     try {
       const result = await addToCart(storeId, item.id, 1);
       if (result && result.conflict) {
-        Alert.alert(
-          'Replace cart items?',
-          result.message || 'Your cart contains items from a different category. Clear cart to add this item?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Clear & Add',
-              style: 'destructive',
-              onPress: async () => {
-                await clearCart();
-                await addToCart(storeId, item.id, 1);
-              },
-            },
-          ]
-        );
+        setShowConflict({ itemToAdd: item });
       }
     } catch (e) {
       console.error('Add to cart error:', e);
+    } finally {
+      setAddingItem(null);
     }
   };
 
   const handleIncrement = async (item: LaundryItem) => {
-    const storeId = item.tenant_id ? `${item.tenant_id}_laundry` : virtualStoreId;
     const qty = getItemQuantity(item.id);
-    const cartItem = cart?.items?.find(i => i.item_id === item.id);
-    if (cartItem) {
-      await updateQuantity(cartItem.item_id, qty + 1);
+    if (qty === 0) {
+      await handleAddToCart(item);
     } else {
-      await addToCart(storeId, item.id, 1);
+      await updateQuantity(item.id, qty + 1);
     }
   };
 
   const handleDecrement = async (item: LaundryItem) => {
     const qty = getItemQuantity(item.id);
-    const cartItem = cart?.items?.find(i => i.item_id === item.id);
-    if (cartItem) {
-      if (qty <= 1) {
-        await removeItem(cartItem.item_id);
-      } else {
-        await updateQuantity(cartItem.item_id, qty - 1);
-      }
+    if (qty <= 1) {
+      await removeItem(item.id);
+    } else {
+      await updateQuantity(item.id, qty - 1);
     }
   };
+
+  // Current cart store name for conflict modal
+  const currentCartName = cartStore?.name || (cart?.store_id || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
 
   if (loading) {
     return (
@@ -165,114 +172,129 @@ export default function LaundryView({ searchQuery }: { searchQuery?: string }) {
   }
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />}
-    >
-      {/* Services Banner */}
-      {services.length > 0 && (
+    <>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />}
+      >
+        {/* Services Banner */}
+        {services.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.servicesRow}
+            contentContainerStyle={styles.servicesContent}
+          >
+            {services.map(svc => (
+              <View key={svc.id} style={styles.serviceCard}>
+                <View style={styles.serviceIconWrap}>
+                  <Ionicons name={getServiceIcon(svc.name) as any} size={22} color="#3B82F6" />
+                </View>
+                <Text style={styles.serviceName}>{svc.name}</Text>
+                {svc.turnaround_time_hours && (
+                  <Text style={styles.serviceTurnaround}>{svc.turnaround_time_hours}h delivery</Text>
+                )}
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
+        {/* Category Filter Chips */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={styles.servicesRow}
-          contentContainerStyle={styles.servicesContent}
+          style={styles.chipsRow}
+          contentContainerStyle={styles.chipsContent}
         >
-          {services.map(svc => (
-            <View key={svc.id} style={styles.serviceCard}>
-              <View style={styles.serviceIconWrap}>
-                <Ionicons name={getServiceIcon(svc.name) as any} size={22} color="#3B82F6" />
-              </View>
-              <Text style={styles.serviceName}>{svc.name}</Text>
-              {svc.turnaround_time_hours && (
-                <Text style={styles.serviceTurnaround}>{svc.turnaround_time_hours}h delivery</Text>
-              )}
-            </View>
-          ))}
+          <TouchableOpacity
+            style={[styles.chip, selectedFilter === 'all' && styles.chipActive]}
+            onPress={() => setSelectedFilter('all')}
+          >
+            <Text style={[styles.chipText, selectedFilter === 'all' && styles.chipTextActive]}>
+              All Items ({allItems.length})
+            </Text>
+          </TouchableOpacity>
+          {itemCategories.map(cat => {
+            const count = allItems.filter(i => (i.category || 'General') === cat).length;
+            const isActive = selectedFilter === cat;
+            return (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.chip, isActive && styles.chipActive]}
+                onPress={() => setSelectedFilter(cat)}
+              >
+                <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
+                  {cat} ({count})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
-      )}
 
-      {/* Category Filter Chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chipsRow}
-        contentContainerStyle={styles.chipsContent}
-      >
-        <TouchableOpacity
-          style={[styles.chip, selectedFilter === 'all' && styles.chipActive]}
-          onPress={() => setSelectedFilter('all')}
-        >
-          <Text style={[styles.chipText, selectedFilter === 'all' && styles.chipTextActive]}>
-            All Items ({allItems.length})
-          </Text>
-        </TouchableOpacity>
-        {itemCategories.map(cat => {
-          const count = allItems.filter(i => (i.category || 'General') === cat).length;
-          const isActive = selectedFilter === cat;
-          return (
-            <TouchableOpacity
-              key={cat}
-              style={[styles.chip, isActive && styles.chipActive]}
-              onPress={() => setSelectedFilter(cat)}
-            >
-              <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                {cat} ({count})
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+        {/* Items List */}
+        <View style={styles.itemList}>
+          {displayItems.map(item => {
+            const qty = getItemQuantity(item.id);
+            const pricingLabel = item.pricing_type === 'per_kg' ? '/kg' : '/item';
+            const isAdding = addingItem === item.id;
 
-      {/* Items List */}
-      <View style={styles.itemList}>
-        {displayItems.map(item => {
-          const qty = getItemQuantity(item.id);
-          const pricingLabel = item.pricing_type === 'per_kg' ? '/kg' : '/item';
-
-          return (
-            <View key={item.id} style={styles.itemCard}>
-              {/* Item Icon */}
-              <View style={styles.itemIconWrap}>
-                <Ionicons name="shirt" size={22} color="#3B82F6" />
-              </View>
-
-              {/* Item Info */}
-              <View style={styles.itemInfo}>
-                <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                {item.category && (
-                  <Text style={styles.itemCategory}>{item.category}</Text>
-                )}
-                <View style={styles.itemPriceRow}>
-                  <Text style={styles.itemPrice}>{'\u20B9'}{item.price}</Text>
-                  <Text style={styles.itemPriceUnit}>{pricingLabel}</Text>
+            return (
+              <View key={item.id} style={styles.itemCard}>
+                <View style={styles.itemIconWrap}>
+                  <Ionicons name="shirt" size={22} color="#3B82F6" />
+                </View>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+                  {item.category && (
+                    <Text style={styles.itemCategory}>{item.category}</Text>
+                  )}
+                  <View style={styles.itemPriceRow}>
+                    <Text style={styles.itemPrice}>{'\u20B9'}{item.price}</Text>
+                    <Text style={styles.itemPriceUnit}>{pricingLabel}</Text>
+                  </View>
+                </View>
+                <View style={styles.actionCol}>
+                  {qty === 0 ? (
+                    <TouchableOpacity
+                      style={styles.addBtn}
+                      onPress={() => handleAddToCart(item)}
+                      disabled={isAdding}
+                    >
+                      {isAdding ? (
+                        <ActivityIndicator size="small" color="#3B82F6" />
+                      ) : (
+                        <Text style={styles.addBtnText}>ADD</Text>
+                      )}
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.qtyControl}>
+                      <TouchableOpacity style={styles.qtyBtn} onPress={() => handleDecrement(item)}>
+                        <Ionicons name="remove" size={16} color="#3B82F6" />
+                      </TouchableOpacity>
+                      <Text style={styles.qtyNum}>{qty}</Text>
+                      <TouchableOpacity style={styles.qtyBtn} onPress={() => handleIncrement(item)}>
+                        <Ionicons name="add" size={16} color="#3B82F6" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               </View>
+            );
+          })}
+        </View>
+        <View style={{ height: 60 }} />
+      </ScrollView>
 
-              {/* Add / Qty Controls */}
-              <View style={styles.actionCol}>
-                {qty === 0 ? (
-                  <TouchableOpacity style={styles.addBtn} onPress={() => handleAdd(item)}>
-                    <Text style={styles.addBtnText}>ADD</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.qtyControl}>
-                    <TouchableOpacity style={styles.qtyBtn} onPress={() => handleDecrement(item)}>
-                      <Ionicons name="remove" size={16} color="#3B82F6" />
-                    </TouchableOpacity>
-                    <Text style={styles.qtyNum}>{qty}</Text>
-                    <TouchableOpacity style={styles.qtyBtn} onPress={() => handleIncrement(item)}>
-                      <Ionicons name="add" size={16} color="#3B82F6" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            </View>
-          );
-        })}
-      </View>
-
-      <View style={{ height: 60 }} />
-    </ScrollView>
+      {/* Cart Conflict Modal — same as food store */}
+      <CartConflictModal
+        visible={!!showConflict}
+        currentStoreName={currentCartName}
+        newStoreName="Laundry"
+        accentColor="#3B82F6"
+        onKeepCurrent={() => setShowConflict(null)}
+        onClearAndAdd={handleClearAndAdd}
+      />
+    </>
   );
 }
 
@@ -286,8 +308,6 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 17, fontWeight: '600', color: '#1F2937', marginBottom: 4 },
   emptySub: { fontSize: 13, color: '#9CA3AF' },
-
-  // Services banner
   servicesRow: { marginBottom: 16 },
   servicesContent: { paddingHorizontal: 4, gap: 12 },
   serviceCard: {
@@ -300,8 +320,6 @@ const styles = StyleSheet.create({
   },
   serviceName: { fontSize: 13, fontWeight: '600', color: '#1E40AF', marginBottom: 2 },
   serviceTurnaround: { fontSize: 11, color: '#60A5FA' },
-
-  // Category Chips
   chipsRow: { marginBottom: 12 },
   chipsContent: { paddingHorizontal: 4, gap: 8 },
   chip: {
@@ -312,8 +330,6 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: '#3B82F6', borderColor: '#3B82F6' },
   chipText: { fontSize: 13, fontWeight: '600', color: '#6B7280' },
   chipTextActive: { color: '#fff' },
-
-  // Item List
   itemList: { gap: 1 },
   itemCard: {
     flexDirection: 'row', alignItems: 'center',
@@ -330,22 +346,17 @@ const styles = StyleSheet.create({
   itemPriceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
   itemPrice: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
   itemPriceUnit: { fontSize: 12, color: '#9CA3AF' },
-
-  // Action column
   actionCol: { marginLeft: 12, alignItems: 'center' },
   addBtn: {
     borderWidth: 1.5, borderColor: '#3B82F6', borderRadius: 8,
     paddingHorizontal: 20, paddingVertical: 8, backgroundColor: '#3B82F608',
+    minWidth: 70, alignItems: 'center',
   },
   addBtnText: { fontSize: 14, fontWeight: '700', color: '#3B82F6' },
   qtyControl: {
     flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#3B82F6', borderRadius: 8,
-    overflow: 'hidden',
+    borderWidth: 1.5, borderColor: '#3B82F6', borderRadius: 8, overflow: 'hidden',
   },
-  qtyBtn: {
-    width: 32, height: 32, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#3B82F610',
-  },
+  qtyBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3B82F610' },
   qtyNum: { fontSize: 14, fontWeight: '700', color: '#3B82F6', minWidth: 24, textAlign: 'center' },
 });
