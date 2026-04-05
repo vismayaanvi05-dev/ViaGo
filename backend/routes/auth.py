@@ -62,8 +62,7 @@ async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_d
             "message": message,
             "delivery_method": "email",
             "email": request.email,
-            "email_sent": email_sent,
-            "otp": otp  # Always return OTP for sandbox/testing mode
+            "email_sent": email_sent
         }
         
         return response
