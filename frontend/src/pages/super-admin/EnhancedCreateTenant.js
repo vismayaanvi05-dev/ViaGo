@@ -26,6 +26,8 @@ const EnhancedCreateTenant = () => {
     business_name: '',
     address: '',
     town: '',
+    lat: null,
+    lng: null,
     
     // Feature Configuration
     payment_methods: ['cod', 'online'],
@@ -179,7 +181,34 @@ const EnhancedCreateTenant = () => {
                     placeholder="City name"
                     required
                   />
+                  <p className="text-sm text-gray-500">Customer location will be matched with this town/city</p>
                 </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Latitude *</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={formData.lat || ''}
+                      onChange={(e) => setFormData({...formData, lat: e.target.value ? parseFloat(e.target.value) : null})}
+                      placeholder="12.9716"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Longitude *</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={formData.lng || ''}
+                      onChange={(e) => setFormData({...formData, lng: e.target.value ? parseFloat(e.target.value) : null})}
+                      placeholder="77.5946"
+                      required
+                    />
+                  </div>
+                </div>
+                <p className="text-sm text-gray-500">Get coordinates from <a href="https://www.latlong.net/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">latlong.net</a> or Google Maps</p>
               </div>
 
               <div className="space-y-2">
