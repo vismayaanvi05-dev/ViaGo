@@ -1,1 +1,1 @@
-from .auth import *
+# Middleware package

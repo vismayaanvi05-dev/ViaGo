@@ -1,171 +1,243 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from models.user import OTPRequest, OTPVerify, LoginResponse, User, UserCreate
-from utils.helpers import generate_otp, create_access_token, verify_password, get_password_hash
+from models.tenant import Tenant
+from utils.helpers import generate_otp, create_access_token
+from services.sms_service import send_otp as send_sms_otp, verify_otp as verify_sms_otp
+from services.email_service import send_otp_email, send_welcome_email
 from datetime import datetime, timedelta, timezone
-from pydantic import BaseModel, EmailStr
-from typing import Optional
 import os
+import random
 import uuid
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+# In-memory OTP storage (for fallback/mock mode only)
+# When using Twilio/Resend, storage may not be needed
 otp_storage = {}
 
 def get_db():
     from server import db
     return db
 
-# ==================== CUSTOMER OTP AUTH ====================
-
 @router.post("/send-otp")
 async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Send OTP for customer authentication (self-signup)"""
-    from services.email_service import send_otp_email
+    """
+    Send OTP via Email (Resend) - Email-Only Authentication
+    """
+    try:
+        # Validate email is provided
+        if not request.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email address is required"
+            )
+        
+        # Generate OTP for email
+        otp = generate_otp(6)
+        result = await send_otp_email(request.email, otp, "User")
+        
+        # Store OTP for verification
+        otp_storage[request.email] = {
+            "otp": otp,
+            "role": request.role,
+            "expires_at": datetime.now(timezone.utc) + timedelta(minutes=5),
+            "attempts": 0
+        }
+        
+        response = {
+            "success": True,
+            "message": result["message"],
+            "delivery_method": "email",
+            "email": request.email
+        }
+        
+        # Include OTP in response for testing (in production, remove this)
+        if os.getenv("NODE_ENV") != "production":
+            response["otp"] = otp
+            response["note"] = "OTP shown for testing only - Check your email"
+        
+        return response
     
-    if not request.email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is required")
-    
-    # Only allow customers to use OTP auth
-    if request.role and request.role != "customer":
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="OTP authentication is only available for customers. Drivers should use login with credentials."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send OTP: {str(e)}"
         )
-    
-    otp = generate_otp(6)
-    otp_storage[request.email] = {
-        "otp": otp,
-        "role": "customer",
-        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=5),
-        "attempts": 0
-    }
-    
-    # Send OTP via email using Resend
-    email_result = await send_otp_email(request.email, otp)
-    
-    response_data = {
-        "success": True,
-        "message": "OTP sent to your email",
-        "email": request.email,
-        "expires_in_minutes": 5,
-        "email_sent": email_result.get("success", False)
-    }
-    
-    # Include OTP in response for testing (remove in production)
-    # Only show if email failed to send
-    if not email_result.get("success"):
-        response_data["otp"] = otp
-        response_data["note"] = "Email delivery pending - OTP shown for testing"
-    
-    return response_data
 
 @router.post("/verify-otp", response_model=LoginResponse)
 async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Verify OTP for customer login/registration"""
+    """
+    Verify OTP and login/register user - Email-Only Authentication
+    """
+    # Validate email is provided
     if not request.email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is required")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email is required for verification"
+        )
     
+    # Check OTP in storage
     stored_otp_data = otp_storage.get(request.email)
-    if not stored_otp_data:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP not found. Please request a new OTP.")
     
+    if not stored_otp_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP not found or expired. Please request a new OTP."
+        )
+    
+    # Check expiry
     if datetime.now(timezone.utc) > stored_otp_data["expires_at"]:
         del otp_storage[request.email]
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP expired. Please request a new OTP.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP expired. Please request a new OTP."
+        )
     
+    # Verify OTP
     if stored_otp_data["otp"] != request.otp:
         stored_otp_data["attempts"] += 1
         if stored_otp_data["attempts"] >= 3:
             del otp_storage[request.email]
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Too many failed attempts. Please request a new OTP.")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OTP")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Too many failed attempts. Please request a new OTP."
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid OTP"
+        )
     
-    # Check if customer exists
-    user_doc = await db.users.find_one({"email": request.email, "role": "customer"}, {"_id": 0})
+    # Clean up storage
+    del otp_storage[request.email]
+    
+    # Check if user exists
+    user_doc = await db.users.find_one(
+        {"email": request.email, "role": request.role},
+        {"_id": 0}
+    )
+    
+    tenant_doc = None
     
     if not user_doc:
-        # New customer - need name for registration
+        # New user - create account
         if not request.name:
-            # Don't delete OTP yet - user needs to provide name and retry
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Name required for new user registration"
             )
         
-        user_data = UserCreate(name=request.name, email=request.email, role="customer")
+        # For customer role, no tenant_id needed
+        tenant_id = None
+        
+        # If role is not customer/super_admin, we need tenant context
+        # For MVP, we'll handle tenant assignment separately
+        
+        user_data = UserCreate(
+            tenant_id=tenant_id,
+            name=request.name,
+            email=request.email,
+            role=request.role
+        )
+        
         user_obj = User(**user_data.model_dump())
         user_dict = user_obj.model_dump()
         user_dict["created_at"] = user_dict["created_at"].isoformat()
         user_dict["updated_at"] = user_dict["updated_at"].isoformat()
+        
         await db.users.insert_one(user_dict)
         user_doc = user_dict
-        
-        # Send welcome email to new customer
-        from services.email_service import send_welcome_email
-        await send_welcome_email(request.email, request.name)
     
-    # OTP verified and user logged in - now delete the OTP
-    del otp_storage[request.email]
+    # Get tenant info if user has tenant_id
+    if user_doc.get("tenant_id"):
+        tenant_doc = await db.tenants.find_one({"id": user_doc["tenant_id"]}, {"_id": 0})
     
+    # Create JWT token
     token_data = {
         "user_id": user_doc["id"],
-        "email": user_doc["email"],
+        "phone": user_doc["phone"],
         "role": user_doc["role"],
-        "tenant_id": user_doc.get("tenant_id")
+        "tenant_id": user_doc.get("tenant_id"),
+        "store_id": user_doc.get("store_id")  # Include store_id for vendors
     }
+    
     access_token = create_access_token(token_data)
     
+    # Convert datetime fields for response
     if isinstance(user_doc.get("created_at"), str):
         user_doc["created_at"] = datetime.fromisoformat(user_doc["created_at"])
     if isinstance(user_doc.get("updated_at"), str):
         user_doc["updated_at"] = datetime.fromisoformat(user_doc["updated_at"])
     
-    return LoginResponse(access_token=access_token, user=User(**user_doc), tenant=None)
+    return LoginResponse(
+        access_token=access_token,
+        user=User(**user_doc),
+        tenant=tenant_doc
+    )
 
-# ==================== DRIVER PASSWORD AUTH ====================
+# Import auth dependency at the top
+from middleware.auth import get_current_user as get_current_user_middleware
 
-class DriverLoginRequest(BaseModel):
-    email: EmailStr
+@router.get("/me")
+async def get_current_user_info(current_user: dict = Depends(get_current_user_middleware), db: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Get current logged in user info
+    """
+    user_doc = await db.users.find_one({"id": current_user["user_id"]}, {"_id": 0})
+    
+    if not user_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Convert datetime fields
+    if isinstance(user_doc.get("created_at"), str):
+        user_doc["created_at"] = datetime.fromisoformat(user_doc["created_at"])
+    if isinstance(user_doc.get("updated_at"), str):
+        user_doc["updated_at"] = datetime.fromisoformat(user_doc["updated_at"])
+    
+    return user_doc
+
+
+from pydantic import BaseModel
+from utils.helpers import verify_password, get_password_hash
+
+class UsernamePasswordLogin(BaseModel):
+    username: str
     password: str
 
-@router.post("/driver/login", response_model=LoginResponse)
-async def driver_login(request: DriverLoginRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Login for delivery drivers (credentials set by tenant admin)"""
-    
-    # Find driver by email
-    user_doc = await db.users.find_one(
-        {"email": request.email, "role": "delivery_partner"},
-        {"_id": 0}
-    )
+@router.post("/login", response_model=LoginResponse)
+async def login_with_password(request: UsernamePasswordLogin, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Login with username and password (for Super Admin, Tenant Admin, Vendor Admin)
+    """
+    # Find user by email (using email as username)
+    user_doc = await db.users.find_one({"email": request.username}, {"_id": 0})
     
     if not user_doc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
+            detail="Invalid credentials"
         )
     
-    # Check if driver has password set
+    # Check if user has password (admins only)
     if not user_doc.get("password"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Account not properly configured. Contact your admin."
+            detail="This account uses OTP login"
         )
     
     # Verify password
     if not verify_password(request.password, user_doc["password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
+            detail="Invalid credentials"
         )
     
-    # Check if account is active
-    if user_doc.get("status") == "inactive":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account is inactive. Contact your admin."
-        )
-    
-    # Get tenant info
+    # Get tenant info if user has tenant_id
     tenant_doc = None
     if user_doc.get("tenant_id"):
         tenant_doc = await db.tenants.find_one({"id": user_doc["tenant_id"]}, {"_id": 0})
@@ -175,8 +247,10 @@ async def driver_login(request: DriverLoginRequest, db: AsyncIOMotorDatabase = D
         "user_id": user_doc["id"],
         "email": user_doc["email"],
         "role": user_doc["role"],
-        "tenant_id": user_doc.get("tenant_id")
+        "tenant_id": user_doc.get("tenant_id"),
+        "store_id": user_doc.get("store_id")  # Include store_id for vendors
     }
+    
     access_token = create_access_token(token_data)
     
     # Convert datetime fields
@@ -185,8 +259,122 @@ async def driver_login(request: DriverLoginRequest, db: AsyncIOMotorDatabase = D
     if isinstance(user_doc.get("updated_at"), str):
         user_doc["updated_at"] = datetime.fromisoformat(user_doc["updated_at"])
     
-    # Remove password from response
-    user_doc.pop("password", None)
+    return LoginResponse(
+        access_token=access_token,
+        user=User(**user_doc),
+        tenant=tenant_doc
+    )
+
+
+# ==================== EMAIL OTP LOGIN ====================
+
+@router.post("/send-email-otp")
+async def send_email_otp(
+    request: dict,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Send OTP to email for tenant admin login or password reset
+    """
+    email = request.get("email")
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    # Find user by email
+    user_doc = await db.users.find_one({"email": email}, {"_id": 0})
+    
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Generate 6-digit OTP
+    otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+    
+    # Store OTP in database with expiry (5 minutes)
+    otp_doc = {
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "otp": otp,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        "used": False
+    }
+    
+    await db.email_otps.insert_one(otp_doc)
+    
+    # In production, send email via SendGrid/SES
+    # For now, return OTP in response for testing
+    print(f"📧 Email OTP for {email}: {otp}")
+    
+    return {
+        "success": True,
+        "message": "OTP sent to your email",
+        "email": email,
+        "otp": otp  # Remove in production
+    }
+
+@router.post("/verify-email-otp", response_model=LoginResponse)
+async def verify_email_otp(
+    request: dict,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Verify email OTP and login
+    """
+    email = request.get("email")
+    otp = request.get("otp")
+    
+    if not email or not otp:
+        raise HTTPException(status_code=400, detail="Email and OTP are required")
+    
+    # Find OTP
+    otp_doc = await db.email_otps.find_one({
+        "email": email,
+        "otp": otp,
+        "used": False
+    }, {"_id": 0})
+    
+    if not otp_doc:
+        raise HTTPException(status_code=401, detail="Invalid or expired OTP")
+    
+    # Check expiry
+    expires_at = datetime.fromisoformat(otp_doc["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=401, detail="OTP expired")
+    
+    # Mark OTP as used
+    await db.email_otps.update_one(
+        {"id": otp_doc["id"]},
+        {"$set": {"used": True}}
+    )
+    
+    # Get user
+    user_doc = await db.users.find_one({"email": email}, {"_id": 0})
+    
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get tenant info if user has tenant_id
+    tenant_doc = None
+    if user_doc.get("tenant_id"):
+        tenant_doc = await db.tenants.find_one({"id": user_doc["tenant_id"]}, {"_id": 0})
+    
+    # Create JWT token
+    token_data = {
+        "user_id": user_doc["id"],
+        "email": user_doc["email"],
+        "role": user_doc["role"],
+        "tenant_id": user_doc.get("tenant_id"),
+        "store_id": user_doc.get("store_id")  # Include store_id for vendors
+    }
+    
+    access_token = create_access_token(token_data)
+    
+    # Convert datetime fields
+    if isinstance(user_doc.get("created_at"), str):
+        user_doc["created_at"] = datetime.fromisoformat(user_doc["created_at"])
+    if isinstance(user_doc.get("updated_at"), str):
+        user_doc["updated_at"] = datetime.fromisoformat(user_doc["updated_at"])
     
     return LoginResponse(
         access_token=access_token,
@@ -194,146 +382,56 @@ async def driver_login(request: DriverLoginRequest, db: AsyncIOMotorDatabase = D
         tenant=tenant_doc
     )
 
-# ==================== TENANT ADMIN - DRIVER MANAGEMENT ====================
-
-class DriverCreateRequest(BaseModel):
-    name: str
-    email: EmailStr
-    password: str
-    phone: Optional[str] = None
-    vehicle_type: Optional[str] = None
-    vehicle_number: Optional[str] = None
-
-class DriverUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = None
-    vehicle_type: Optional[str] = None
-    vehicle_number: Optional[str] = None
-    status: Optional[str] = None
-    password: Optional[str] = None
-
-@router.post("/admin/drivers")
-async def create_driver(
-    driver_data: DriverCreateRequest,
+@router.post("/reset-password")
+async def reset_password(
+    request: dict,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
-    """Create a new delivery driver (Tenant Admin only)"""
-    from services.email_service import send_driver_credentials_email
+    """
+    Reset password using email OTP
+    """
+    email = request.get("email")
+    otp = request.get("otp")
+    new_password = request.get("new_password")
     
-    # For now, we'll create without admin auth for testing
-    # In production, add proper auth with tenant admin verification
+    if not email or not otp or not new_password:
+        raise HTTPException(status_code=400, detail="Email, OTP and new password are required")
     
-    # Check if email already exists
-    existing = await db.users.find_one({"email": driver_data.email})
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
+    # Verify OTP
+    otp_doc = await db.email_otps.find_one({
+        "email": email,
+        "otp": otp,
+        "used": False
+    }, {"_id": 0})
     
-    # Create driver user
-    driver_id = str(uuid.uuid4())
+    if not otp_doc:
+        raise HTTPException(status_code=401, detail="Invalid or expired OTP")
     
-    # Assign to first available tenant (multi-tenant SaaS)
-    tenant = await db.tenants.find_one({}, {"_id": 0, "id": 1})
-    tenant_id = tenant["id"] if tenant else None
+    # Check expiry
+    expires_at = datetime.fromisoformat(otp_doc["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=401, detail="OTP expired")
     
-    driver = {
-        "id": driver_id,
-        "name": driver_data.name,
-        "email": driver_data.email,
-        "password": get_password_hash(driver_data.password),
-        "phone": driver_data.phone,
-        "role": "delivery_partner",
-        "tenant_id": tenant_id,
-        "vehicle_type": driver_data.vehicle_type,
-        "vehicle_number": driver_data.vehicle_number,
-        "status": "active",
-        "is_deleted": False,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    await db.users.insert_one(driver)
-    
-    # Send credentials email to the new driver
-    email_result = await send_driver_credentials_email(
-        driver_data.email, 
-        driver_data.name, 
-        driver_data.password
+    # Mark OTP as used
+    await db.email_otps.update_one(
+        {"id": otp_doc["id"]},
+        {"$set": {"used": True}}
     )
     
-    # Remove password from response
-    driver.pop("password", None)
-    driver.pop("_id", None)
+    # Update password
+    hashed_password = get_password_hash(new_password)
+    result = await db.users.update_one(
+        {"email": email},
+        {"$set": {
+            "password": hashed_password,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
     
     return {
         "success": True,
-        "message": "Driver created successfully",
-        "driver": driver,
-        "email_sent": email_result.get("success", False)
+        "message": "Password reset successfully"
     }
-
-@router.get("/admin/drivers")
-async def list_drivers(db: AsyncIOMotorDatabase = Depends(get_db)):
-    """List all delivery drivers"""
-    drivers = await db.users.find(
-        {"role": "delivery_partner", "is_deleted": {"$ne": True}},
-        {"_id": 0, "password": 0}
-    ).to_list(100)
-    
-    return {"drivers": drivers, "total": len(drivers)}
-
-@router.get("/admin/drivers/{driver_id}")
-async def get_driver(driver_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Get driver details"""
-    driver = await db.users.find_one(
-        {"id": driver_id, "role": "delivery_partner"},
-        {"_id": 0, "password": 0}
-    )
-    if not driver:
-        raise HTTPException(status_code=404, detail="Driver not found")
-    return driver
-
-@router.put("/admin/drivers/{driver_id}")
-async def update_driver(
-    driver_id: str,
-    update_data: DriverUpdateRequest,
-    db: AsyncIOMotorDatabase = Depends(get_db)
-):
-    """Update driver details"""
-    driver = await db.users.find_one({"id": driver_id, "role": "delivery_partner"})
-    if not driver:
-        raise HTTPException(status_code=404, detail="Driver not found")
-    
-    update_dict = {k: v for k, v in update_data.model_dump(exclude_unset=True).items()}
-    
-    # Hash password if provided
-    if "password" in update_dict and update_dict["password"]:
-        update_dict["password"] = get_password_hash(update_dict["password"])
-    
-    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
-    
-    await db.users.update_one({"id": driver_id}, {"$set": update_dict})
-    
-    return {"success": True, "message": "Driver updated successfully"}
-
-@router.delete("/admin/drivers/{driver_id}")
-async def delete_driver(driver_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """Soft delete driver"""
-    driver = await db.users.find_one({"id": driver_id, "role": "delivery_partner"})
-    if not driver:
-        raise HTTPException(status_code=404, detail="Driver not found")
-    
-    await db.users.update_one(
-        {"id": driver_id},
-        {"$set": {"is_deleted": True, "status": "inactive", "updated_at": datetime.now(timezone.utc).isoformat()}}
-    )
-    
-    return {"success": True, "message": "Driver deleted successfully"}
-
-@router.get("/me")
-async def get_me(db: AsyncIOMotorDatabase = Depends(get_db)):
-    from middleware.auth import get_current_user
-    return {"message": "Use Authorization header"}

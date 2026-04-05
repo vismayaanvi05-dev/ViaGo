@@ -1,11 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException, status, Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from datetime import datetime, timezone, timedelta
-from uuid import uuid4
-import math
-
+from models.order import Delivery, DeliveryUpdate
 from middleware.auth import get_current_user, require_role
-from utils.helpers import calculate_distance
+from datetime import datetime
+from typing import List
 
 router = APIRouter(prefix="/delivery", tags=["Delivery Partner"])
 
@@ -13,276 +11,301 @@ def get_db():
     from server import db
     return db
 
-@router.get("/profile")
-async def get_delivery_profile(current_user: dict = Depends(get_current_user), db: AsyncIOMotorDatabase = Depends(get_db)):
-    await require_role(current_user, ["delivery_partner"])
-    user = await db.users.find_one({"id": current_user["user_id"]}, {"_id": 0})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    total_deliveries = await db.orders.count_documents({"delivery_partner_id": current_user["user_id"], "status": "delivered"})
-    pipeline = [{"$match": {"delivery_partner_id": current_user["user_id"], "status": "delivered"}}, {"$group": {"_id": None, "total": {"$sum": "$delivery_fee"}}}]
-    result = await db.orders.aggregate(pipeline).to_list(1)
-    total_earnings = result[0]["total"] if result else 0
-    
-    user["stats"] = {"total_deliveries": total_deliveries, "total_earnings": total_earnings}
-    return user
+# ==================== AVAILABLE ORDERS ====================
 
-@router.put("/profile")
-async def update_delivery_profile(profile_data: dict, current_user: dict = Depends(get_current_user), db: AsyncIOMotorDatabase = Depends(get_db)):
-    await require_role(current_user, ["delivery_partner"])
-    allowed = ["name", "email", "vehicle_type", "vehicle_number", "profile_photo"]
-    update = {k: v for k, v in profile_data.items() if k in allowed}
-    if update:
-        update["updated_at"] = datetime.now(timezone.utc).isoformat()
-        await db.users.update_one({"id": current_user["user_id"]}, {"$set": update})
-    return {"success": True, "message": "Profile updated"}
-
-@router.get("/available")
-async def get_available_deliveries(
-    lat: float, lng: float, radius_km: float = 10, module: str = None,
-    current_user: dict = Depends(get_current_user), db: AsyncIOMotorDatabase = Depends(get_db)
+@router.get("/available-orders")
+async def get_available_orders(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    lat: float = None,
+    lng: float = None,
+    limit: int = 20
 ):
-    await require_role(current_user, ["delivery_partner"])
+    """
+    Get available delivery orders (status: ready, not assigned)
+    """
+    await require_role(current_user, ["delivery"])
     
-    # Multi-tenant: only show orders from driver's tenant
-    tenant_id = current_user.get("tenant_id")
-    query = {
-        "$or": [{"status": "ready"}, {"status": "packed"}, {"status": "confirmed"}, {"status": "placed"}],
-        "delivery_partner_id": None
-    }
-    if tenant_id:
-        query["tenant_id"] = tenant_id
-    if module:
-        query["module"] = module
+    # Get orders that are ready for pickup and not assigned
+    deliveries = await db.deliveries.find(
+        {"status": "pending"},
+        {"_id": 0}
+    ).limit(limit).to_list(limit)
     
-    orders = await db.orders.find(query, {"_id": 0}).to_list(100)
-    available = []
-    
-    for order in orders:
-        store = await db.stores.find_one({"id": order["store_id"]}, {"_id": 0})
-        if not store or not store.get("lat") or not store.get("lng"):
-            continue
-        
-        distance = calculate_distance(lat, lng, store["lat"], store["lng"])
-        if distance <= radius_km:
-            order["pickup_location"] = {
-                "name": store.get("name"),
-                "address": store.get("address_line"),
-                "city": store.get("city", ""),
-                "phone": store.get("phone", "N/A"),
-                "lat": store.get("lat"),
-                "lng": store.get("lng"),
-                "distance_km": distance,
-                "store_type": store.get("store_type", "restaurant")
+    # Enrich with order and store details
+    for delivery in deliveries:
+        order = await db.orders.find_one({"id": delivery["order_id"]}, {"_id": 0})
+        if order:
+            delivery["order"] = {
+                "id": order["id"],
+                "order_number": order["order_number"],
+                "total_amount": order["total_amount"],
+                "payment_method": order["payment_method"],
+                "delivery_address": order["delivery_address"],
+                "special_instructions": order.get("special_instructions")
             }
             
-            address = order.get("delivery_address") or {}
-            order["drop_location"] = {
-                "address": address.get("address_line"),
-                "city": address.get("city"),
-                "landmark": address.get("landmark", ""),
-                "lat": address.get("lat"),
-                "lng": address.get("lng")
+            # Get store details
+            store = await db.stores.find_one({"id": order["store_id"]}, {"_id": 0})
+            if store:
+                delivery["store"] = {
+                    "name": store["name"],
+                    "address_line": store["address_line"],
+                    "phone": store.get("phone"),
+                    "lat": store.get("lat"),
+                    "lng": store.get("lng")
+                }
+                
+                # Calculate distance if coordinates provided
+                if lat and lng and store.get("lat") and store.get("lng"):
+                    from utils.helpers import calculate_distance
+                    distance = calculate_distance(lat, lng, store["lat"], store["lng"])
+                    delivery["distance_to_store_km"] = distance
+    
+    return deliveries
+
+# ==================== MY DELIVERIES ====================
+
+@router.get("/my-deliveries")
+async def get_my_deliveries(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    status_filter: str = None
+):
+    """
+    Get delivery partner's assigned deliveries
+    """
+    await require_role(current_user, ["delivery"])
+    user_id = current_user["user_id"]
+    
+    query = {"delivery_partner_id": user_id}
+    if status_filter:
+        query["status"] = status_filter
+    
+    deliveries = await db.deliveries.find(query, {"_id": 0}).sort("created_at", -1).to_list(50)
+    
+    # Enrich with order details
+    for delivery in deliveries:
+        order = await db.orders.find_one({"id": delivery["order_id"]}, {"_id": 0})
+        if order:
+            delivery["order"] = {
+                "id": order["id"],
+                "order_number": order["order_number"],
+                "total_amount": order["total_amount"],
+                "payment_method": order["payment_method"],
+                "delivery_address": order["delivery_address"]
             }
-            order["customer_phone"] = order.get("customer_phone") or address.get("phone") or address.get("mobile") or "N/A"
             
-            # Customer info
-            customer = await db.users.find_one({"id": order.get("customer_id")}, {"_id": 0, "name": 1, "phone": 1})
+            # Get customer info
+            customer = await db.users.find_one({"id": order["customer_id"]}, {"_id": 0, "name": 1, "phone": 1})
             if customer:
-                order["customer"] = {
-                    "name": customer.get("name", "Customer"),
-                    "phone": order.get("customer_phone", "N/A")
+                delivery["customer"] = {
+                    "name": customer.get("name"),
+                    "phone": customer.get("phone")
                 }
             
-            # Items
-            items = await db.order_items.find({"order_id": order["id"]}, {"_id": 0}).to_list(100)
-            order["items"] = items
-            
-            if address.get("lat") and address.get("lng"):
-                delivery_distance = calculate_distance(store["lat"], store["lng"], address["lat"], address["lng"])
-                order["delivery_distance_km"] = delivery_distance
-                order["estimated_earning"] = round(30 + (delivery_distance * 10), 2)
-            else:
-                order["estimated_earning"] = 50
-            
-            available.append(order)
+            # Get store info
+            store = await db.stores.find_one({"id": order["store_id"]}, {"_id": 0})
+            if store:
+                delivery["store"] = {
+                    "name": store["name"],
+                    "address_line": store["address_line"],
+                    "phone": store.get("phone"),
+                    "lat": store.get("lat"),
+                    "lng": store.get("lng")
+                }
+        
+        # Convert datetime strings
+        if isinstance(delivery.get("created_at"), str):
+            delivery["created_at"] = datetime.fromisoformat(delivery["created_at"])
+        if delivery.get("assigned_at") and isinstance(delivery["assigned_at"], str):
+            delivery["assigned_at"] = datetime.fromisoformat(delivery["assigned_at"])
+        if delivery.get("picked_up_at") and isinstance(delivery["picked_up_at"], str):
+            delivery["picked_up_at"] = datetime.fromisoformat(delivery["picked_up_at"])
+        if delivery.get("delivered_at") and isinstance(delivery["delivered_at"], str):
+            delivery["delivered_at"] = datetime.fromisoformat(delivery["delivered_at"])
     
-    available.sort(key=lambda x: x["pickup_location"]["distance_km"])
-    return {"deliveries": available, "total": len(available)}
+    return deliveries
 
-@router.post("/accept/{order_id}")
-async def accept_delivery(order_id: str, current_user: dict = Depends(get_current_user), db: AsyncIOMotorDatabase = Depends(get_db)):
-    await require_role(current_user, ["delivery_partner"])
+# ==================== ACCEPT DELIVERY ====================
+
+@router.post("/accept/{delivery_id}")
+async def accept_delivery(
+    delivery_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Accept delivery assignment
+    """
+    await require_role(current_user, ["delivery"])
+    user_id = current_user["user_id"]
     
-    order = await db.orders.find_one({
-        "id": order_id,
-        "delivery_partner_id": None,
-        "status": {"$in": ["ready", "packed", "confirmed", "placed"]}
-    })
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not available")
+    delivery = await db.deliveries.find_one({"id": delivery_id})
+    if not delivery:
+        raise HTTPException(status_code=404, detail="Delivery not found")
     
-    await db.orders.update_one(
-        {"id": order_id},
+    if delivery["status"] != "pending":
+        raise HTTPException(status_code=400, detail="Delivery already assigned")
+    
+    # Get user details
+    user = await db.users.find_one({"id": user_id})
+    
+    # Update delivery
+    await db.deliveries.update_one(
+        {"id": delivery_id},
         {"$set": {
-            "delivery_partner_id": current_user["user_id"],
-            "accepted_at": datetime.now(timezone.utc).isoformat(),
-            "status": "out_for_pickup"
+            "status": "assigned",
+            "delivery_partner_id": user_id,
+            "delivery_partner_name": user.get("name"),
+            "delivery_partner_phone": user.get("phone"),
+            "assigned_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
         }}
     )
-    return {"success": True, "message": "Delivery accepted", "order_id": order_id}
+    
+    return {"success": True, "message": "Delivery accepted"}
 
-@router.post("/reject/{order_id}")
-async def reject_delivery(order_id: str, reason: dict, current_user: dict = Depends(get_current_user), db: AsyncIOMotorDatabase = Depends(get_db)):
-    await require_role(current_user, ["delivery_partner"])
-    await db.delivery_rejections.insert_one({
-        "id": str(uuid4()),
-        "order_id": order_id,
-        "delivery_partner_id": current_user["user_id"],
-        "reason": reason.get("reason", "Not specified"),
-        "rejected_at": datetime.now(timezone.utc).isoformat()
-    })
-    return {"success": True, "message": "Delivery rejected"}
+# ==================== UPDATE DELIVERY STATUS ====================
 
-@router.get("/assigned")
-async def get_assigned_deliveries(current_user: dict = Depends(get_current_user), db: AsyncIOMotorDatabase = Depends(get_db)):
-    await require_role(current_user, ["delivery_partner"])
+@router.put("/status/{delivery_id}")
+async def update_delivery_status(
+    delivery_id: str,
+    status: str,
+    proof_image: str = None,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Update delivery status (picked_up, in_transit, delivered, failed)
+    """
+    await require_role(current_user, ["delivery"])
+    user_id = current_user["user_id"]
     
-    orders = await db.orders.find({
-        "delivery_partner_id": current_user["user_id"],
-        "status": {"$nin": ["delivered", "cancelled"]}
-    }, {"_id": 0}).to_list(100)
+    delivery = await db.deliveries.find_one({"id": delivery_id, "delivery_partner_id": user_id})
+    if not delivery:
+        raise HTTPException(status_code=404, detail="Delivery not found")
     
-    for order in orders:
-        # Store info with phone
-        store = await db.stores.find_one({"id": order["store_id"]}, {"_id": 0})
-        if store:
-            order["store"] = {
-                "name": store.get("name"),
-                "phone": store.get("phone", "N/A"),
-                "address": store.get("address_line", ""),
-                "city": store.get("city", ""),
-                "lat": store.get("lat"),
-                "lng": store.get("lng"),
-                "store_type": store.get("store_type", "restaurant")
-            }
-            order["pickup_location"] = {
-                "name": store.get("name"),
-                "address": store.get("address_line", ""),
-                "city": store.get("city", ""),
-                "phone": store.get("phone", "N/A"),
-                "lat": store.get("lat"),
-                "lng": store.get("lng")
-            }
-        
-        # Drop-off with customer phone
-        addr = order.get("delivery_address") or {}
-        order["drop_location"] = {
-            "address": addr.get("address_line", ""),
-            "city": addr.get("city", ""),
-            "landmark": addr.get("landmark", ""),
-            "pincode": addr.get("pincode", ""),
-            "lat": addr.get("lat"),
-            "lng": addr.get("lng")
-        }
-        order["customer_phone"] = order.get("customer_phone") or addr.get("phone") or addr.get("mobile") or "N/A"
-        
-        # Customer info
-        customer = await db.users.find_one({"id": order.get("customer_id")}, {"_id": 0, "name": 1, "email": 1, "phone": 1})
-        if customer:
-            order["customer"] = {
-                "name": customer.get("name", "Customer"),
-                "phone": order.get("customer_phone", "N/A")
-            }
-        
-        # Order items
-        items = await db.order_items.find({"order_id": order["id"]}, {"_id": 0}).to_list(100)
-        order["items"] = items
-    
-    return {"deliveries": orders, "total": len(orders)}
-
-@router.put("/status/{order_id}")
-async def update_delivery_status(order_id: str, status_data: dict, current_user: dict = Depends(get_current_user), db: AsyncIOMotorDatabase = Depends(get_db)):
-    await require_role(current_user, ["delivery_partner"])
-    new_status = status_data.get("status")
-    
-    valid_statuses = ["on_the_way", "picked_up", "in_transit", "reached_location", "delivered"]
-    if new_status not in valid_statuses:
+    # Validate status transition
+    valid_statuses = ["assigned", "picked_up", "in_transit", "delivered", "failed"]
+    if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
     
-    order = await db.orders.find_one({"id": order_id, "delivery_partner_id": current_user["user_id"]})
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    update_data = {
+        "status": status,
+        "updated_at": datetime.utcnow().isoformat()
+    }
     
-    update = {"status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}
-    if new_status == "on_the_way":
-        update["on_the_way_at"] = datetime.now(timezone.utc).isoformat()
-    elif new_status == "picked_up":
-        update["picked_up_at"] = datetime.now(timezone.utc).isoformat()
-    elif new_status == "in_transit":
-        update["in_transit_at"] = datetime.now(timezone.utc).isoformat()
-    elif new_status == "reached_location":
-        update["reached_location_at"] = datetime.now(timezone.utc).isoformat()
-    elif new_status == "delivered":
-        update["delivered_at"] = datetime.now(timezone.utc).isoformat()
-        if status_data.get("proof_photo"):
-            update["delivery_proof"] = status_data["proof_photo"]
+    # Set timestamps based on status
+    if status == "picked_up":
+        update_data["picked_up_at"] = datetime.utcnow().isoformat()
+        # Update order status
+        await db.orders.update_one(
+            {"id": delivery["order_id"]},
+            {"$set": {"status": "out_for_delivery"}}
+        )
     
-    await db.orders.update_one({"id": order_id}, {"$set": update})
-    return {"success": True, "message": f"Status updated to {new_status}", "order_id": order_id}
+    elif status == "delivered":
+        update_data["delivered_at"] = datetime.utcnow().isoformat()
+        if proof_image:
+            update_data["delivery_proof_image"] = proof_image
+        
+        # Update order status
+        order = await db.orders.find_one({"id": delivery["order_id"]})
+        await db.orders.update_one(
+            {"id": delivery["order_id"]},
+            {"$set": {
+                "status": "delivered",
+                "delivered_at": datetime.utcnow().isoformat()
+            }}
+        )
+        
+        # Credit vendor wallet
+        if order:
+            await credit_vendor_wallet(db, order)
+    
+    await db.deliveries.update_one(
+        {"id": delivery_id},
+        {"$set": update_data}
+    )
+    
+    return {"success": True, "message": f"Status updated to {status}"}
 
-@router.get("/history")
-async def get_delivery_history(skip: int = 0, limit: int = 20, current_user: dict = Depends(get_current_user), db: AsyncIOMotorDatabase = Depends(get_db)):
-    await require_role(current_user, ["delivery_partner"])
+async def credit_vendor_wallet(db, order):
+    """
+    Credit vendor wallet when order is delivered
+    """
+    wallet = await db.wallets.find_one({"tenant_id": order["tenant_id"]})
+    if not wallet:
+        return
     
-    orders = await db.orders.find(
-        {"delivery_partner_id": current_user["user_id"], "status": "delivered"},
-        {"_id": 0}
-    ).sort("delivered_at", -1).skip(skip).limit(limit).to_list(limit)
+    payout_amount = order.get("vendor_payout", 0)
     
-    for order in orders:
-        store = await db.stores.find_one({"id": order["store_id"]}, {"_id": 0, "name": 1})
-        order["store_name"] = store.get("name") if store else "Unknown"
-    
-    return {"deliveries": orders, "total": len(orders)}
+    if payout_amount > 0:
+        new_balance = wallet["balance"] + payout_amount
+        
+        await db.wallets.update_one(
+            {"tenant_id": order["tenant_id"]},
+            {"$set": {
+                "balance": new_balance,
+                "total_earned": wallet["total_earned"] + payout_amount,
+                "updated_at": datetime.utcnow().isoformat()
+            }}
+        )
+        
+        # Create transaction record
+        from models.monetization import WalletTransaction
+        transaction = WalletTransaction(
+            tenant_id=order["tenant_id"],
+            wallet_id=wallet["id"],
+            transaction_type="credit",
+            amount=payout_amount,
+            source="order",
+            reference_id=order["id"],
+            description=f"Order {order['order_number']} delivered",
+            balance_after=new_balance
+        )
+        transaction_dict = transaction.model_dump()
+        transaction_dict["created_at"] = transaction_dict["created_at"].isoformat()
+        await db.wallet_transactions.insert_one(transaction_dict)
+
+# ==================== EARNINGS ====================
 
 @router.get("/earnings")
-async def get_earnings(period: str = "today", current_user: dict = Depends(get_current_user), db: AsyncIOMotorDatabase = Depends(get_db)):
-    await require_role(current_user, ["delivery_partner"])
+async def get_earnings(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Get delivery partner earnings summary
+    """
+    await require_role(current_user, ["delivery"])
+    user_id = current_user["user_id"]
     
-    now = datetime.now(timezone.utc)
-    if period == "today":
-        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    elif period == "week":
-        start_date = now - timedelta(days=7)
-    elif period == "month":
-        start_date = now - timedelta(days=30)
-    else:
-        start_date = None
+    # Count completed deliveries
+    total_deliveries = await db.deliveries.count_documents({
+        "delivery_partner_id": user_id,
+        "status": "delivered"
+    })
     
-    query = {"delivery_partner_id": current_user["user_id"], "status": "delivered"}
-    if start_date:
-        query["delivered_at"] = {"$gte": start_date.isoformat()}
+    # For MVP, assume fixed earning per delivery (₹50)
+    earning_per_delivery = 50
+    total_earnings = total_deliveries * earning_per_delivery
     
-    pipeline = [{"$match": query}, {"$group": {"_id": None, "total_earnings": {"$sum": "$delivery_fee"}, "total_deliveries": {"$sum": 1}}}]
-    result = await db.orders.aggregate(pipeline).to_list(1)
+    # Today's deliveries
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_deliveries = await db.deliveries.count_documents({
+        "delivery_partner_id": user_id,
+        "status": "delivered",
+        "delivered_at": {"$gte": today_start.isoformat()}
+    })
     
-    if result:
-        data = result[0]
-        return {
-            "period": period,
-            "total_earnings": data.get("total_earnings", 0),
-            "total_deliveries": data.get("total_deliveries", 0),
-            "average_per_delivery": round(data.get("total_earnings", 0) / max(data.get("total_deliveries", 1), 1), 2)
-        }
-    return {"period": period, "total_earnings": 0, "total_deliveries": 0, "average_per_delivery": 0}
-
-@router.put("/location")
-async def update_location(location_data: dict, current_user: dict = Depends(get_current_user), db: AsyncIOMotorDatabase = Depends(get_db)):
-    await require_role(current_user, ["delivery_partner"])
-    await db.users.update_one(
-        {"id": current_user["user_id"]},
-        {"$set": {"current_location": {"lat": location_data.get("lat"), "lng": location_data.get("lng"), "updated_at": datetime.now(timezone.utc).isoformat()}}}
-    )
-    return {"success": True, "message": "Location updated"}
+    today_earnings = today_deliveries * earning_per_delivery
+    
+    return {
+        "total_deliveries": total_deliveries,
+        "total_earnings": total_earnings,
+        "today_deliveries": today_deliveries,
+        "today_earnings": today_earnings,
+        "earning_per_delivery": earning_per_delivery
+    }

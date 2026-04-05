@@ -3,18 +3,17 @@ from typing import Optional
 from datetime import datetime
 import uuid
 
+# ==================== USER MODELS ====================
+
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    tenant_id: Optional[str] = None
+    tenant_id: Optional[str] = None  # None for super_admin
     name: str
-    phone: Optional[str] = None
-    email: EmailStr
-    role: str  # 'super_admin', 'tenant_admin', 'delivery_partner', 'customer'
+    phone: Optional[str] = None  # Optional for Email-Only auth
+    email: EmailStr  # Required for Email-Only auth
+    role: str  # 'super_admin', 'tenant_admin', 'vendor', 'delivery', 'customer', 'staff'
     profile_photo: Optional[str] = None
-    status: str = "active"
-    vehicle_type: Optional[str] = None
-    vehicle_number: Optional[str] = None
-    current_location: Optional[dict] = None
+    status: str = "active"  # 'active' or 'inactive'
     is_deleted: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -22,19 +21,34 @@ class User(BaseModel):
 class UserCreate(BaseModel):
     tenant_id: Optional[str] = None
     name: str
-    phone: Optional[str] = None
-    email: EmailStr
+    phone: Optional[str] = None  # Optional for Email-Only auth
+    email: EmailStr  # Required for Email-Only auth
     role: str
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    profile_photo: Optional[str] = None
+    status: Optional[str] = None
+
+# ==================== AUTH MODELS ====================
 
 class OTPRequest(BaseModel):
     email: EmailStr
-    role: Optional[str] = "customer"
+    role: Optional[str] = "customer"  # Default role for registration
 
 class OTPVerify(BaseModel):
     email: EmailStr
     otp: str
     role: Optional[str] = "customer"
-    name: Optional[str] = None
+    name: Optional[str] = None  # For new user registration
+
+class OTPStore(BaseModel):
+    phone: str
+    otp: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: datetime
+    attempts: int = 0
 
 class LoginResponse(BaseModel):
     access_token: str
@@ -42,11 +56,13 @@ class LoginResponse(BaseModel):
     user: User
     tenant: Optional[dict] = None
 
+# ==================== ADDRESS MODELS ====================
+
 class Address(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     tenant_id: Optional[str] = None
-    address_type: str = "home"
+    address_type: str = "home"  # 'home', 'work', 'other'
     address_line: str
     landmark: Optional[str] = None
     city: str
