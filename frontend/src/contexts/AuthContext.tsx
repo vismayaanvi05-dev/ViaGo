@@ -68,7 +68,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const sendOTP = async (email: string) => {
     try {
       const response = await customerAPI.sendOTP(email);
-      return { success: true, otp: response.data.otp };
+      return { 
+        success: true, 
+        email_sent: response.data.email_sent !== false,
+        message: response.data.message
+      };
     } catch (error: any) {
       return { success: false, error: error.response?.data?.detail || 'Failed to send OTP' };
     }

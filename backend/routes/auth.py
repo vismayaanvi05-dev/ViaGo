@@ -65,11 +65,6 @@ async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_d
             "email_sent": email_sent
         }
         
-        # Include OTP in response for testing (in production, remove this)
-        if os.getenv("NODE_ENV") != "production":
-            response["otp"] = otp
-            response["note"] = "OTP shown for testing only - Check your email"
-        
         return response
     
     except HTTPException:

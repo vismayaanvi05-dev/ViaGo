@@ -50,7 +50,7 @@ class EmailService:
                     <!-- Header -->
                     <tr>
                         <td style="background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%); padding: 40px; text-align: center; border-radius: 8px 8px 0 0;">
-                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">🚀 HyperServe</h1>
+                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">ViaGo</h1>
                             <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0; font-size: 14px;">Your Local Commerce Platform</p>
                         </td>
                     </tr>
@@ -133,7 +133,7 @@ class EmailService:
             params = {
                 "from": f"{self.sender_name} <{self.sender_email}>",
                 "to": [email],
-                "subject": f"Your HyperServe verification code: {otp}",
+                "subject": f"Your ViaGo verification code: {otp}",
                 "html": html_content
             }
             

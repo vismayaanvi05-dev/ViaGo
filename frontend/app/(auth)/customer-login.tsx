@@ -25,7 +25,6 @@ export default function CustomerLoginScreen() {
   const [name, setName] = useState('');
   const [step, setStep] = useState<'email' | 'otp' | 'name'>('email');
   const [loading, setLoading] = useState(false);
-  const [displayOTP, setDisplayOTP] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -62,10 +61,12 @@ export default function CustomerLoginScreen() {
       setLoading(false);
 
       if (result.success) {
-        if (result.otp) {
-          setDisplayOTP(result.otp);
+        if (result.email_sent) {
+          setSuccessMsg(`Verification code sent to ${email}`);
+        } else {
+          showError('Could not deliver email. Please verify your email address and try again.');
+          return;
         }
-        setSuccessMsg(`Verification code sent to ${email}`);
         setTimeout(() => setSuccessMsg(''), 4000);
         setStep('otp');
       } else {
@@ -193,13 +194,6 @@ export default function CustomerLoginScreen() {
 
           {step === 'otp' && (
             <View style={styles.form}>
-              {displayOTP ? (
-                <View style={styles.otpHintBox}>
-                  <Text style={styles.otpHintLabel}>Your verification code</Text>
-                  <Text style={styles.otpHintValue}>{displayOTP}</Text>
-                  <Text style={styles.otpHintNote}>Sandbox mode - check email in production</Text>
-                </View>
-              ) : null}
               <View style={styles.inputContainer}>
                 <Ionicons name="keypad-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
                 <TextInput
@@ -226,7 +220,7 @@ export default function CustomerLoginScreen() {
                 )}
               </TouchableOpacity>
               <View style={styles.linkRow}>
-                <TouchableOpacity onPress={() => { setStep('email'); setOtp(''); setDisplayOTP(''); }}>
+                <TouchableOpacity onPress={() => { setStep('email'); setOtp(''); }}>
                   <Text style={[styles.linkText, { color: APP_CONFIG.PRIMARY_COLOR }]}>Change email</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleSendOTP} disabled={loading}>
@@ -302,13 +296,6 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   linkRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 },
   linkText: { fontSize: 14, fontWeight: '600' },
-  otpHintBox: {
-    backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 14,
-    padding: 16, marginBottom: 16, alignItems: 'center',
-  },
-  otpHintLabel: { fontSize: 12, color: '#166534', marginBottom: 4 },
-  otpHintValue: { fontSize: 28, fontWeight: '800', color: '#059669', letterSpacing: 6 },
-  otpHintNote: { fontSize: 11, color: '#6B7280', marginTop: 6 },
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2',
     borderWidth: 1, borderColor: '#FECACA', padding: 12, borderRadius: 12, marginBottom: 16, width: '100%',
