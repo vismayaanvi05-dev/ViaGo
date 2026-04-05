@@ -889,13 +889,22 @@ async def browse_restaurants(
                 store["distance_km"] = None
                 store["is_deliverable"] = True
     
-    # Get tenant info
-    for store in stores:
-        tenant = await db.tenants.find_one({"id": store["tenant_id"]}, {"_id": 0, "name": 1, "logo_url": 1})
-        if tenant:
-            store["tenant_name"] = tenant.get("name")
+    # Get tenant info (Batch fetch to avoid N+1 query)
+    tenant_ids = list(set(store["tenant_id"] for store in stores if store.get("tenant_id")))
+    if tenant_ids:
+        tenants = await db.tenants.find(
+            {"id": {"$in": tenant_ids}}, 
+            {"_id": 0, "id": 1, "name": 1, "logo_url": 1}
+        ).to_list(len(tenant_ids))
+        tenant_map = {t["id"]: t for t in tenants}
         
-        # Convert datetime strings
+        for store in stores:
+            tenant = tenant_map.get(store["tenant_id"])
+            if tenant:
+                store["tenant_name"] = tenant.get("name")
+    
+    # Convert datetime strings
+    for store in stores:
         if isinstance(store.get("created_at"), str):
             store["created_at"] = datetime.fromisoformat(store["created_at"])
         if isinstance(store.get("updated_at"), str):

@@ -1,6 +1,6 @@
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: 'https://hyperserve-food-mvp.preview.emergentagent.com/api',
+  BASE_URL: process.env.EXPO_PUBLIC_BACKEND_URL + '/api',
   TIMEOUT: 30000,
 };
 
