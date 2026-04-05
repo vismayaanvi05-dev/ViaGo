@@ -50,7 +50,7 @@ export default function GroceryView({ searchQuery }: { searchQuery?: string }) {
     try {
       const city = address?.city || undefined;
       const response = await customerAPI.getGrocery(
-        city, searchQuery || undefined,
+        city, undefined,
         location?.latitude, location?.longitude
       );
       setCategories(response.data.categories || []);
@@ -60,7 +60,7 @@ export default function GroceryView({ searchQuery }: { searchQuery?: string }) {
     } finally {
       setLoading(false);
     }
-  }, [address, location, searchQuery]);
+  }, [address, location]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -71,10 +71,17 @@ export default function GroceryView({ searchQuery }: { searchQuery?: string }) {
     setRefreshing(false);
   };
 
-  // Filter products
-  const displayProducts = selectedCategory === 'all'
+  // Filter products by category and search query (client-side)
+  const searchLower = (searchQuery || '').toLowerCase().trim();
+  const filteredByCategory = selectedCategory === 'all'
     ? allProducts
     : allProducts.filter(p => p.category_id === selectedCategory);
+  const displayProducts = searchLower
+    ? filteredByCategory.filter(p =>
+        p.name.toLowerCase().includes(searchLower) ||
+        (p.brand || '').toLowerCase().includes(searchLower)
+      )
+    : filteredByCategory;
 
   // ─── Cart conflict & add logic (same as food store) ───
   const handleAddToCart = async (product: GroceryProduct) => {
@@ -192,7 +199,14 @@ export default function GroceryView({ searchQuery }: { searchQuery?: string }) {
 
         {/* Product List */}
         <View style={styles.productList}>
-          {displayProducts.map(product => {
+          {displayProducts.length === 0 && searchLower ? (
+            <View style={styles.noResultsWrap}>
+              <Ionicons name="search-outline" size={36} color="#D1D5DB" />
+              <Text style={styles.noResultsTitle}>No results for "{searchQuery}"</Text>
+              <Text style={styles.noResultsSub}>Try a different search term</Text>
+            </View>
+          ) : (
+          displayProducts.map(product => {
             const qty = getItemQuantity(product.id);
             const outOfStock = product.current_stock != null && product.current_stock <= 0;
             const hasDiscount = product.discount_percentage > 0;
@@ -253,7 +267,8 @@ export default function GroceryView({ searchQuery }: { searchQuery?: string }) {
                 </View>
               </View>
             );
-          })}
+          })
+          )}
         </View>
         <View style={{ height: 60 }} />
       </ScrollView>
@@ -325,4 +340,7 @@ const styles = StyleSheet.create({
   qtyNum: { fontSize: 14, fontWeight: '700', color: '#10B981', minWidth: 24, textAlign: 'center' },
   oosTag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#FEF2F2' },
   oosText: { fontSize: 11, fontWeight: '600', color: '#DC2626' },
+  noResultsWrap: { alignItems: 'center', paddingVertical: 40, gap: 8 },
+  noResultsTitle: { fontSize: 15, fontWeight: '600', color: '#6B7280' },
+  noResultsSub: { fontSize: 13, color: '#9CA3AF' },
 });

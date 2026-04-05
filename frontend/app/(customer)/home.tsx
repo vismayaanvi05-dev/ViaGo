@@ -79,28 +79,32 @@ export default function CustomerHomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Search (only for food) */}
-      {selectedModule === 'food' && (
-        <View style={styles.searchWrap}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color="#9CA3AF" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search restaurants..."
-              placeholderTextColor="#9CA3AF"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onSubmitEditing={loadFoodStores}
-              returnKeyType="search"
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => { setSearchQuery(''); }}>
-                <Ionicons name="close-circle" size={18} color="#D1D5DB" />
-              </TouchableOpacity>
-            )}
-          </View>
+      {/* Search for all modules */}
+      <View style={styles.searchWrap}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={18} color="#9CA3AF" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={
+              selectedModule === 'food'
+                ? 'Search restaurants...'
+                : selectedModule === 'grocery'
+                ? 'Search groceries...'
+                : 'Search laundry items...'
+            }
+            placeholderTextColor="#9CA3AF"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmitEditing={selectedModule === 'food' ? loadFoodStores : undefined}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => { setSearchQuery(''); }}>
+              <Ionicons name="close-circle" size={18} color="#D1D5DB" />
+            </TouchableOpacity>
+          )}
         </View>
-      )}
+      </View>
 
       {/* Module Selector */}
       <View style={styles.modules}>

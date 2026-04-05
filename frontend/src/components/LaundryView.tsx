@@ -66,7 +66,7 @@ export default function LaundryView({ searchQuery }: { searchQuery?: string }) {
     try {
       const city = address?.city || undefined;
       const response = await customerAPI.getLaundry(
-        city, searchQuery || undefined,
+        city, undefined,
         location?.latitude, location?.longitude
       );
       setServices(response.data.services || []);
@@ -76,7 +76,7 @@ export default function LaundryView({ searchQuery }: { searchQuery?: string }) {
     } finally {
       setLoading(false);
     }
-  }, [address, location, searchQuery]);
+  }, [address, location]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -90,10 +90,17 @@ export default function LaundryView({ searchQuery }: { searchQuery?: string }) {
   // Build filter options from item categories
   const itemCategories = [...new Set(allItems.map(i => i.category || 'General').filter(Boolean))];
 
-  // Filter items
-  const displayItems = selectedFilter === 'all'
+  // Filter items by category and search query (client-side)
+  const searchLower = (searchQuery || '').toLowerCase().trim();
+  const filteredByCategory = selectedFilter === 'all'
     ? allItems
     : allItems.filter(i => (i.category || 'General') === selectedFilter);
+  const displayItems = searchLower
+    ? filteredByCategory.filter(i =>
+        i.name.toLowerCase().includes(searchLower) ||
+        (i.category || '').toLowerCase().includes(searchLower)
+      )
+    : filteredByCategory;
 
   // ─── Cart conflict & add logic (same as food store) ───
   const handleAddToCart = async (item: LaundryItem) => {
@@ -233,7 +240,14 @@ export default function LaundryView({ searchQuery }: { searchQuery?: string }) {
 
         {/* Items List */}
         <View style={styles.itemList}>
-          {displayItems.map(item => {
+          {displayItems.length === 0 && searchLower ? (
+            <View style={styles.noResultsWrap}>
+              <Ionicons name="search-outline" size={36} color="#D1D5DB" />
+              <Text style={styles.noResultsTitle}>No results for "{searchQuery}"</Text>
+              <Text style={styles.noResultsSub}>Try a different search term</Text>
+            </View>
+          ) : (
+          displayItems.map(item => {
             const qty = getItemQuantity(item.id);
             const pricingLabel = item.pricing_type === 'per_kg' ? '/kg' : '/item';
             const isAdding = addingItem === item.id;
@@ -280,7 +294,8 @@ export default function LaundryView({ searchQuery }: { searchQuery?: string }) {
                 </View>
               </View>
             );
-          })}
+          })
+          )}
         </View>
         <View style={{ height: 60 }} />
       </ScrollView>
@@ -359,4 +374,7 @@ const styles = StyleSheet.create({
   },
   qtyBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3B82F610' },
   qtyNum: { fontSize: 14, fontWeight: '700', color: '#3B82F6', minWidth: 24, textAlign: 'center' },
+  noResultsWrap: { alignItems: 'center', paddingVertical: 40, gap: 8 },
+  noResultsTitle: { fontSize: 15, fontWeight: '600', color: '#6B7280' },
+  noResultsSub: { fontSize: 13, color: '#9CA3AF' },
 });
