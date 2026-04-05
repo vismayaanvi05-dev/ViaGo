@@ -9,6 +9,7 @@ import {
   RefreshControl,
   SafeAreaView,
   Modal,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { deliveryAPI } from '@/src/services/api';
@@ -16,10 +17,11 @@ import { deliveryAPI } from '@/src/services/api';
 const G = '#10B981';
 
 const STATUS_FLOW = [
-  { key: 'out_for_pickup', label: 'Heading to Store', icon: 'navigate', color: '#3B82F6' },
-  { key: 'picked_up', label: 'Picked Up', icon: 'bag-check', color: '#8B5CF6' },
-  { key: 'out_for_delivery', label: 'On the Way', icon: 'bicycle', color: G },
-  { key: 'delivered', label: 'Delivered', icon: 'checkmark-done-circle', color: '#059669' },
+  { key: 'out_for_pickup', label: 'On the Way', icon: 'navigate' as const, color: '#3B82F6', desc: 'Head to store for pickup' },
+  { key: 'picked_up', label: 'Order Picked Up', icon: 'bag-check' as const, color: '#8B5CF6', desc: 'Collected from store' },
+  { key: 'in_transit', label: 'In Transit', icon: 'bicycle' as const, color: '#F59E0B', desc: 'On the way to customer' },
+  { key: 'reached_location', label: 'Reached Location', icon: 'location' as const, color: '#3B82F6', desc: 'Arrived at drop-off' },
+  { key: 'delivered', label: 'Delivered', icon: 'checkmark-done-circle' as const, color: '#059669', desc: 'Successfully delivered' },
 ];
 
 export default function ActiveDeliveriesScreen() {
@@ -29,10 +31,17 @@ export default function ActiveDeliveriesScreen() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ orderId: string; nextStatus: string; label: string } | null>(null);
+  const [expandedItems, setExpandedItems] = useState<string | null>(null);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const callPhone = (phone: string) => {
+    if (phone && phone !== 'N/A') {
+      Linking.openURL(`tel:${phone}`);
+    }
   };
 
   const loadOrders = useCallback(async () => {
@@ -63,11 +72,14 @@ export default function ActiveDeliveriesScreen() {
     if (idx >= 0 && idx < STATUS_FLOW.length - 1) {
       return STATUS_FLOW[idx + 1];
     }
+    // If status is "on_the_way" (old), map to picked_up
+    if (currentStatus === 'on_the_way') return STATUS_FLOW[1];
     return null;
   };
 
   const getCurrentStatusIndex = (status: string) => {
-    return STATUS_FLOW.findIndex(s => s.key === status);
+    const idx = STATUS_FLOW.findIndex(s => s.key === status);
+    return idx >= 0 ? idx : 0;
   };
 
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
@@ -75,7 +87,7 @@ export default function ActiveDeliveriesScreen() {
     try {
       setUpdating(orderId);
       await deliveryAPI.updateDeliveryStatus(orderId, newStatus);
-      showToast(`Status updated to ${STATUS_FLOW.find(s => s.key === newStatus)?.label || newStatus}`);
+      showToast(`Updated to ${STATUS_FLOW.find(s => s.key === newStatus)?.label || newStatus}`);
       loadOrders();
     } catch (error: any) {
       showToast(error.response?.data?.detail || 'Failed to update status', 'error');
@@ -84,30 +96,44 @@ export default function ActiveDeliveriesScreen() {
     }
   };
 
-  const renderProgressBar = (currentStatus: string) => {
+  const renderStatusTimeline = (currentStatus: string) => {
     const currentIdx = getCurrentStatusIndex(currentStatus);
     return (
-      <View style={styles.progressContainer}>
+      <View style={styles.timeline}>
         {STATUS_FLOW.map((step, idx) => {
           const isCompleted = idx <= currentIdx;
           const isCurrent = idx === currentIdx;
           return (
-            <View key={step.key} style={styles.progressStep}>
-              <View style={[
-                styles.progressDot,
-                isCompleted && { backgroundColor: step.color },
-                isCurrent && { borderWidth: 2, borderColor: step.color + '40' },
-              ]}>
-                {isCompleted && (
-                  <Ionicons name={isCurrent ? step.icon as any : 'checkmark'} size={isCurrent ? 12 : 10} color="#fff" />
+            <View key={step.key} style={styles.timelineStep}>
+              <View style={styles.timelineLeft}>
+                <View style={[
+                  styles.timelineDot,
+                  isCompleted && { backgroundColor: step.color },
+                  isCurrent && styles.timelineDotCurrent,
+                ]}>
+                  {isCompleted ? (
+                    <Ionicons name={isCurrent ? step.icon : 'checkmark'} size={isCurrent ? 14 : 12} color="#fff" />
+                  ) : (
+                    <Text style={styles.timelineStepNum}>{idx + 1}</Text>
+                  )}
+                </View>
+                {idx < STATUS_FLOW.length - 1 && (
+                  <View style={[
+                    styles.timelineLine,
+                    isCompleted && idx < currentIdx && { backgroundColor: G },
+                  ]} />
                 )}
               </View>
-              {idx < STATUS_FLOW.length - 1 && (
-                <View style={[
-                  styles.progressLine,
-                  isCompleted && idx < currentIdx && { backgroundColor: G },
-                ]} />
-              )}
+              <View style={styles.timelineContent}>
+                <Text style={[
+                  styles.timelineLabel,
+                  isCompleted && { color: '#0F172A', fontWeight: '700' },
+                  isCurrent && { color: step.color },
+                ]}>
+                  {step.label}
+                </Text>
+                {isCurrent && <Text style={styles.timelineDesc}>{step.desc}</Text>}
+              </View>
             </View>
           );
         })}
@@ -152,7 +178,12 @@ export default function ActiveDeliveriesScreen() {
           {orders.map((order) => {
             const nextStatus = getNextStatus(order.status);
             const isUpdating = updating === order.id;
-            const currentStep = STATUS_FLOW.find(s => s.key === order.status);
+            const currentStep = STATUS_FLOW.find(s => s.key === order.status) || STATUS_FLOW[0];
+            const items = order.items || [];
+            const storePhone = order.pickup_location?.phone || order.store?.phone || 'N/A';
+            const customerPhone = order.customer_phone || 'N/A';
+            const customerName = order.customer?.name || 'Customer';
+            const isItemsExpanded = expandedItems === order.id;
 
             return (
               <View key={order.id} style={styles.orderCard}>
@@ -164,53 +195,93 @@ export default function ActiveDeliveriesScreen() {
                       {order.placed_at ? new Date(order.placed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                     </Text>
                   </View>
-                  <View style={[styles.currentStatusBadge, { backgroundColor: (currentStep?.color || G) + '15' }]}>
-                    <Ionicons name={currentStep?.icon as any || 'ellipse'} size={14} color={currentStep?.color || G} />
-                    <Text style={[styles.currentStatusText, { color: currentStep?.color || G }]}>
-                      {currentStep?.label || order.status}
+                  <View style={[styles.currentStatusBadge, { backgroundColor: currentStep.color + '15' }]}>
+                    <Ionicons name={currentStep.icon} size={14} color={currentStep.color} />
+                    <Text style={[styles.currentStatusText, { color: currentStep.color }]}>
+                      {currentStep.label}
                     </Text>
                   </View>
                 </View>
 
-                {/* Progress Bar */}
-                {renderProgressBar(order.status)}
+                {/* Status Timeline */}
+                {renderStatusTimeline(order.status)}
 
-                {/* Route Info */}
-                <View style={styles.routeSection}>
-                  <View style={styles.routeRow}>
-                    <View style={[styles.routeIndicator, { backgroundColor: G }]} />
-                    <View style={styles.routeInfo}>
-                      <Text style={styles.routeLabel}>Pickup</Text>
-                      <Text style={styles.routeValue}>{order.pickup_location?.name || 'Store'}</Text>
+                {/* Pickup Location with Call */}
+                <View style={styles.locationSection}>
+                  <View style={styles.locationCard}>
+                    <View style={[styles.locIcon, { backgroundColor: G + '15' }]}>
+                      <Ionicons name="restaurant" size={16} color={G} />
                     </View>
-                  </View>
-                  <View style={styles.routeDash} />
-                  <View style={styles.routeRow}>
-                    <View style={[styles.routeIndicator, { backgroundColor: '#EF4444' }]} />
-                    <View style={styles.routeInfo}>
-                      <Text style={styles.routeLabel}>Drop-off</Text>
-                      <Text style={styles.routeValue} numberOfLines={1}>
-                        {order.drop_location?.address || 'Customer address'}
+                    <View style={styles.locDetails}>
+                      <Text style={styles.locLabel}>Pickup</Text>
+                      <Text style={styles.locName}>{order.pickup_location?.name || order.store?.name || 'Store'}</Text>
+                      <Text style={styles.locAddr}>
+                        {order.pickup_location?.address || order.store?.address || ''}
                       </Text>
                     </View>
+                    {storePhone !== 'N/A' && (
+                      <TouchableOpacity style={[styles.callBtnSmall, { backgroundColor: G + '15' }]} onPress={() => callPhone(storePhone)}>
+                        <Ionicons name="call" size={16} color={G} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  <View style={styles.locationCard}>
+                    <View style={[styles.locIcon, { backgroundColor: '#EF444415' }]}>
+                      <Ionicons name="location" size={16} color="#EF4444" />
+                    </View>
+                    <View style={styles.locDetails}>
+                      <Text style={styles.locLabel}>Deliver to {customerName}</Text>
+                      <Text style={styles.locAddr}>
+                        {order.drop_location?.address || 'Customer address'}
+                        {order.drop_location?.city ? `, ${order.drop_location.city}` : ''}
+                      </Text>
+                      {order.drop_location?.landmark ? (
+                        <Text style={styles.locLandmark}>Near: {order.drop_location.landmark}</Text>
+                      ) : null}
+                    </View>
+                    {customerPhone !== 'N/A' && (
+                      <TouchableOpacity style={[styles.callBtnSmall, { backgroundColor: '#3B82F615' }]} onPress={() => callPhone(customerPhone)}>
+                        <Ionicons name="call" size={16} color="#3B82F6" />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
 
-                {/* Order Details */}
-                <View style={styles.detailsRow}>
-                  <View style={styles.detailItem}>
+                {/* Order Items */}
+                <TouchableOpacity
+                  style={styles.itemsToggle}
+                  onPress={() => setExpandedItems(isItemsExpanded ? null : order.id)}
+                >
+                  <View style={styles.itemsToggleLeft}>
                     <Ionicons name="receipt-outline" size={16} color="#64748B" />
-                    <Text style={styles.detailText}>{order.items?.length || 0} items</Text>
+                    <Text style={styles.itemsToggleText}>
+                      {items.length} items {'\u00B7'} {'\u20B9'}{order.total_amount}
+                    </Text>
                   </View>
-                  <View style={styles.detailItem}>
-                    <Ionicons name="cash-outline" size={16} color="#64748B" />
-                    <Text style={styles.detailText}>{'\u20B9'}{order.total_amount}</Text>
+                  <View style={styles.itemsToggleRight}>
+                    <Text style={styles.payMethodText}>{order.payment_method === 'cod' ? 'COD' : 'Paid'}</Text>
+                    <Ionicons name={isItemsExpanded ? 'chevron-up' : 'chevron-down'} size={16} color="#94A3B8" />
                   </View>
-                  <View style={styles.detailItem}>
-                    <Ionicons name="card-outline" size={16} color="#64748B" />
-                    <Text style={styles.detailText}>{order.payment_method === 'cod' ? 'COD' : 'Paid'}</Text>
+                </TouchableOpacity>
+
+                {isItemsExpanded && items.length > 0 && (
+                  <View style={styles.itemsList}>
+                    {items.map((item: any, idx: number) => (
+                      <View key={item.id || idx} style={styles.itemRow}>
+                        <View style={styles.itemQtyBadge}>
+                          <Text style={styles.itemQtyText}>{item.quantity}x</Text>
+                        </View>
+                        <Text style={styles.itemNameText}>{item.item_name}</Text>
+                        <Text style={styles.itemPriceText}>{'\u20B9'}{item.total_price || (item.unit_price * item.quantity)}</Text>
+                      </View>
+                    ))}
+                    <View style={styles.itemsTotalRow}>
+                      <Text style={styles.itemsTotalLabel}>Order Total</Text>
+                      <Text style={styles.itemsTotalValue}>{'\u20B9'}{order.total_amount}</Text>
+                    </View>
                   </View>
-                </View>
+                )}
 
                 {/* Action Button */}
                 {nextStatus && order.status !== 'delivered' ? (
@@ -228,7 +299,7 @@ export default function ActiveDeliveriesScreen() {
                       <ActivityIndicator color="#fff" size="small" />
                     ) : (
                       <>
-                        <Ionicons name={nextStatus.icon as any} size={18} color="#fff" />
+                        <Ionicons name={nextStatus.icon} size={18} color="#fff" />
                         <Text style={styles.statusButtonText}>
                           Mark as {nextStatus.label}
                         </Text>
@@ -248,11 +319,11 @@ export default function ActiveDeliveriesScreen() {
         </ScrollView>
       )}
 
-      {/* Confirm Status Modal */}
+      {/* Confirm Modal */}
       <Modal visible={!!confirmModal} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.modal}>
-            <View style={styles.modalIconWrap}>
+            <View style={[styles.modalIconWrap, { backgroundColor: '#D1FAE5' }]}>
               <Ionicons name="checkmark-circle" size={32} color={G} />
             </View>
             <Text style={styles.modalTitle}>Update Status</Text>
@@ -310,7 +381,7 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   orderNumber: { fontSize: 17, fontWeight: '800', color: '#0F172A' },
   orderTime: { fontSize: 12, color: '#94A3B8', marginTop: 3 },
@@ -320,41 +391,79 @@ const styles = StyleSheet.create({
   },
   currentStatusText: { fontSize: 12, fontWeight: '700' },
 
-  // Progress Bar
-  progressContainer: {
-    flexDirection: 'row', alignItems: 'center', marginBottom: 16,
-    paddingHorizontal: 4,
-  },
-  progressStep: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  progressDot: {
-    width: 24, height: 24, borderRadius: 12, backgroundColor: '#E2E8F0',
+  // Timeline
+  timeline: { marginBottom: 14 },
+  timelineStep: { flexDirection: 'row', minHeight: 36 },
+  timelineLeft: { width: 32, alignItems: 'center' },
+  timelineDot: {
+    width: 26, height: 26, borderRadius: 13, backgroundColor: '#E2E8F0',
     alignItems: 'center', justifyContent: 'center',
   },
-  progressLine: { flex: 1, height: 2, backgroundColor: '#E2E8F0', marginHorizontal: 2 },
+  timelineDotCurrent: {
+    borderWidth: 2, borderColor: 'rgba(16,185,129,0.3)',
+  },
+  timelineStepNum: { fontSize: 11, fontWeight: '600', color: '#94A3B8' },
+  timelineLine: { width: 2, flex: 1, backgroundColor: '#E2E8F0', minHeight: 8 },
+  timelineContent: { flex: 1, marginLeft: 10, paddingBottom: 8 },
+  timelineLabel: { fontSize: 13, fontWeight: '500', color: '#94A3B8' },
+  timelineDesc: { fontSize: 11, color: '#64748B', marginTop: 1 },
 
-  // Route
-  routeSection: { marginBottom: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  routeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  routeIndicator: { width: 10, height: 10, borderRadius: 5 },
-  routeInfo: { flex: 1 },
-  routeLabel: { fontSize: 10, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5 },
-  routeValue: { fontSize: 14, fontWeight: '600', color: '#0F172A', marginTop: 1 },
-  routeDash: {
-    width: 2, height: 14, backgroundColor: '#E2E8F0', marginLeft: 4, marginVertical: 4,
+  // Location Section
+  locationSection: {
+    marginBottom: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9',
+  },
+  locationCard: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 10,
+  },
+  locIcon: {
+    width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+  },
+  locDetails: { flex: 1 },
+  locLabel: { fontSize: 10, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5 },
+  locName: { fontSize: 14, fontWeight: '700', color: '#0F172A', marginTop: 1 },
+  locAddr: { fontSize: 12, color: '#64748B', marginTop: 1, lineHeight: 16 },
+  locLandmark: { fontSize: 11, color: '#F59E0B', fontWeight: '500', marginTop: 2 },
+  callBtnSmall: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
   },
 
-  // Details
-  detailsRow: {
-    flexDirection: 'row', justifyContent: 'space-around',
-    paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginBottom: 14,
+  // Items toggle
+  itemsToggle: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10,
+    backgroundColor: '#F8FAFC', marginBottom: 12,
   },
-  detailItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  detailText: { fontSize: 13, fontWeight: '600', color: '#334155' },
+  itemsToggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  itemsToggleText: { fontSize: 13, fontWeight: '600', color: '#334155' },
+  itemsToggleRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  payMethodText: { fontSize: 11, fontWeight: '700', color: '#94A3B8' },
+
+  itemsList: {
+    backgroundColor: '#F8FAFC', borderRadius: 10, padding: 12, marginBottom: 12,
+  },
+  itemRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 6,
+    borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
+  },
+  itemQtyBadge: {
+    width: 28, height: 22, borderRadius: 4, backgroundColor: G + '15',
+    alignItems: 'center', justifyContent: 'center', marginRight: 10,
+  },
+  itemQtyText: { fontSize: 12, fontWeight: '700', color: G },
+  itemNameText: { flex: 1, fontSize: 13, color: '#334155', fontWeight: '500' },
+  itemPriceText: { fontSize: 13, fontWeight: '600', color: '#0F172A' },
+  itemsTotalRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    paddingTop: 8, marginTop: 4,
+  },
+  itemsTotalLabel: { fontSize: 13, fontWeight: '700', color: '#0F172A' },
+  itemsTotalValue: { fontSize: 15, fontWeight: '800', color: '#0F172A' },
 
   // Action Button
   statusButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 14, borderRadius: 14, gap: 8,
+    paddingVertical: 15, borderRadius: 14, gap: 8,
   },
   statusButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
@@ -383,7 +492,7 @@ const styles = StyleSheet.create({
     maxWidth: 320, alignItems: 'center',
   },
   modalIconWrap: {
-    width: 56, height: 56, borderRadius: 28, backgroundColor: '#D1FAE5',
+    width: 56, height: 56, borderRadius: 28,
     alignItems: 'center', justifyContent: 'center', marginBottom: 14,
   },
   modalTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 6 },

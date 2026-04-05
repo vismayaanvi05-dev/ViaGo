@@ -21,9 +21,11 @@ const STATUS_TIMELINE = [
   { key: 'confirmed', label: 'Confirmed', icon: 'checkmark-circle-outline' as const, desc: 'Restaurant confirmed your order' },
   { key: 'preparing', label: 'Preparing', icon: 'restaurant-outline' as const, desc: 'Your food is being prepared' },
   { key: 'ready', label: 'Ready', icon: 'bag-check-outline' as const, desc: 'Order is ready for pickup' },
-  { key: 'out_for_pickup', label: 'Driver Assigned', icon: 'person-outline' as const, desc: 'A delivery partner is on the way' },
-  { key: 'picked_up', label: 'Picked Up', icon: 'bicycle-outline' as const, desc: 'Driver picked up your order' },
-  { key: 'out_for_delivery', label: 'On the Way', icon: 'navigate-outline' as const, desc: 'Your order is on its way!' },
+  { key: 'out_for_pickup', label: 'Driver Assigned', icon: 'person-outline' as const, desc: 'A delivery partner is on the way to the store' },
+  { key: 'on_the_way', label: 'On the Way to Store', icon: 'navigate-outline' as const, desc: 'Driver is heading to pick up your order' },
+  { key: 'picked_up', label: 'Order Picked Up', icon: 'bag-check-outline' as const, desc: 'Driver picked up your order' },
+  { key: 'in_transit', label: 'In Transit', icon: 'bicycle-outline' as const, desc: 'Your order is on the way to you!' },
+  { key: 'reached_location', label: 'Driver Arrived', icon: 'location-outline' as const, desc: 'Driver has reached your location' },
   { key: 'delivered', label: 'Delivered', icon: 'checkmark-done-circle-outline' as const, desc: 'Order delivered successfully' },
 ];
 

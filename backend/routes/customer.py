@@ -264,7 +264,8 @@ async def place_order(order_data: OrderCreate, current_user: dict = Depends(get_
         tax_amount=tax_amount,
         total_amount=total_amount,
         payment_method=order_data.payment_method,
-        special_instructions=order_data.special_instructions
+        special_instructions=order_data.special_instructions,
+        customer_phone=address.get("phone") or address.get("mobile")
     )
     
     order_dict = order.model_dump()

@@ -1,649 +1,354 @@
 #!/usr/bin/env python3
 """
-ViaGo Backend API Test Suite - Driver Status Update & Customer Order Tracking
-Testing the two specific flows requested in the review
+ViaGo Backend API Test Suite
+Testing the updated Driver delivery flow with enriched data and expanded 5-step status flow
 """
 
 import requests
 import json
-import time
-import uuid
+import sys
 from datetime import datetime
 
 # Backend URL from environment
 BACKEND_URL = "https://intelligent-chandrasekhar-2.preview.emergentagent.com/api"
 
-# Test credentials from test_credentials.md
+# Test credentials
 DRIVER_EMAIL = "driver@test.com"
 DRIVER_PASSWORD = "driver123"
-CUSTOMER_EMAIL = "test@test.com"
 
-class ViaGoFlowTester:
+class ViaGoAPITester:
     def __init__(self):
         self.session = requests.Session()
-        self.test_results = []
         self.driver_token = None
-        self.customer_token = None
-        
-    def log_test(self, test_name, success, details):
-        """Log test results"""
-        result = {
-            "test": test_name,
-            "success": success,
-            "details": details,
-            "timestamp": datetime.now().isoformat()
+        self.test_order_id = None
+        self.results = {
+            "total_tests": 0,
+            "passed": 0,
+            "failed": 0,
+            "errors": []
         }
-        self.test_results.append(result)
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status} {test_name}")
-        if details:
-            print(f"   Details: {details}")
-        print()
+    
+    def log(self, message, level="INFO"):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] {level}: {message}")
+    
+    def test_result(self, test_name, success, details=""):
+        self.results["total_tests"] += 1
+        if success:
+            self.results["passed"] += 1
+            self.log(f"✅ {test_name} - PASSED", "PASS")
+        else:
+            self.results["failed"] += 1
+            self.results["errors"].append(f"{test_name}: {details}")
+            self.log(f"❌ {test_name} - FAILED: {details}", "FAIL")
         
-    def test_health_check(self):
-        """Test basic health check"""
+        if details:
+            self.log(f"   Details: {details}")
+    
+    def make_request(self, method, endpoint, data=None, headers=None):
+        """Make HTTP request with error handling"""
+        url = f"{BACKEND_URL}{endpoint}"
         try:
-            response = self.session.get(f"{BACKEND_URL}/health")
-            if response.status_code == 200:
-                data = response.json()
-                self.log_test("Health Check", True, f"Status: {data.get('status')}, DB: {data.get('database')}")
-                return True
-            else:
-                self.log_test("Health Check", False, f"Status code: {response.status_code}")
-                return False
+            if headers is None:
+                headers = {}
+            
+            if self.driver_token:
+                headers["Authorization"] = f"Bearer {self.driver_token}"
+            
+            response = self.session.request(method, url, json=data, headers=headers)
+            return response
         except Exception as e:
-            self.log_test("Health Check", False, f"Error: {str(e)}")
-            return False
+            self.log(f"Request failed: {str(e)}", "ERROR")
+            return None
     
     def test_driver_login(self):
-        """Test driver login with credentials"""
-        try:
-            payload = {
-                "email": DRIVER_EMAIL,
-                "password": DRIVER_PASSWORD
-            }
-            
-            response = self.session.post(f"{BACKEND_URL}/auth/driver/login", json=payload)
-            
-            if response.status_code == 200:
-                data = response.json()
-                access_token = data.get("access_token")
-                user_data = data.get("user")
-                
-                if access_token and user_data and user_data.get("role") == "delivery_partner":
-                    self.driver_token = access_token
-                    self.session.headers.update({"Authorization": f"Bearer {access_token}"})
-                    self.log_test(
-                        "Driver Login", 
-                        True, 
-                        f"Driver login successful. User ID: {user_data.get('id')}, Name: {user_data.get('name')}"
-                    )
-                    return True
-                else:
-                    self.log_test(
-                        "Driver Login", 
-                        False, 
-                        f"Invalid response structure or role"
-                    )
-                    return False
-            else:
-                self.log_test(
-                    "Driver Login", 
-                    False, 
-                    f"Status code: {response.status_code}, Response: {response.text}"
-                )
-                return False
-                
-        except Exception as e:
-            self.log_test("Driver Login", False, f"Error: {str(e)}")
-            return False
-    
-    def test_get_assigned_deliveries(self):
-        """Test getting assigned deliveries for driver"""
-        try:
-            if not self.driver_token:
-                self.log_test("Get Assigned Deliveries", False, "Driver not logged in")
-                return False, None
-            
-            response = self.session.get(f"{BACKEND_URL}/delivery/assigned")
-            
-            if response.status_code == 200:
-                data = response.json()
-                deliveries = data.get("deliveries", [])
-                total = data.get("total", 0)
-                
-                self.log_test(
-                    "Get Assigned Deliveries", 
-                    True, 
-                    f"Found {total} assigned deliveries"
-                )
-                return True, deliveries
-            else:
-                self.log_test(
-                    "Get Assigned Deliveries", 
-                    False, 
-                    f"Status code: {response.status_code}, Response: {response.text}"
-                )
-                return False, None
-                
-        except Exception as e:
-            self.log_test("Get Assigned Deliveries", False, f"Error: {str(e)}")
-            return False, None
-    
-    def test_get_available_deliveries(self):
-        """Test getting available deliveries for driver to accept"""
-        try:
-            if not self.driver_token:
-                self.log_test("Get Available Deliveries", False, "Driver not logged in")
-                return False, None
-            
-            # Mumbai coordinates
-            params = {
-                "lat": 19.076,
-                "lng": 72.8777,
-                "radius_km": 10
-            }
-            
-            response = self.session.get(f"{BACKEND_URL}/delivery/available", params=params)
-            
-            if response.status_code == 200:
-                data = response.json()
-                deliveries = data.get("deliveries", [])
-                total = data.get("total", 0)
-                
-                self.log_test(
-                    "Get Available Deliveries", 
-                    True, 
-                    f"Found {total} available deliveries"
-                )
-                return True, deliveries
-            else:
-                self.log_test(
-                    "Get Available Deliveries", 
-                    False, 
-                    f"Status code: {response.status_code}, Response: {response.text}"
-                )
-                return False, None
-                
-        except Exception as e:
-            self.log_test("Get Available Deliveries", False, f"Error: {str(e)}")
-            return False, None
-    
-    def test_accept_delivery(self, order_id):
-        """Test accepting a delivery"""
-        try:
-            if not self.driver_token:
-                self.log_test("Accept Delivery", False, "Driver not logged in")
-                return False
-            
-            response = self.session.post(f"{BACKEND_URL}/delivery/accept/{order_id}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                success = data.get("success", False)
-                
-                if success:
-                    self.log_test(
-                        "Accept Delivery", 
-                        True, 
-                        f"Successfully accepted delivery {order_id}"
-                    )
-                    return True
-                else:
-                    self.log_test(
-                        "Accept Delivery", 
-                        False, 
-                        f"Failed to accept delivery: {data.get('message', 'Unknown error')}"
-                    )
-                    return False
-            else:
-                self.log_test(
-                    "Accept Delivery", 
-                    False, 
-                    f"Status code: {response.status_code}, Response: {response.text}"
-                )
-                return False
-                
-        except Exception as e:
-            self.log_test("Accept Delivery", False, f"Error: {str(e)}")
-            return False
-    
-    def test_update_delivery_status(self, order_id, status):
-        """Test updating delivery status"""
-        try:
-            if not self.driver_token:
-                self.log_test(f"Update Status to {status}", False, "Driver not logged in")
-                return False
-            
-            payload = {"status": status}
-            response = self.session.put(f"{BACKEND_URL}/delivery/status/{order_id}", json=payload)
-            
-            if response.status_code == 200:
-                data = response.json()
-                success = data.get("success", False)
-                
-                if success:
-                    self.log_test(
-                        f"Update Status to {status}", 
-                        True, 
-                        f"Successfully updated status to {status} for order {order_id}"
-                    )
-                    return True
-                else:
-                    self.log_test(
-                        f"Update Status to {status}", 
-                        False, 
-                        f"Failed to update status: {data.get('message', 'Unknown error')}"
-                    )
-                    return False
-            else:
-                self.log_test(
-                    f"Update Status to {status}", 
-                    False, 
-                    f"Status code: {response.status_code}, Response: {response.text}"
-                )
-                return False
-                
-        except Exception as e:
-            self.log_test(f"Update Status to {status}", False, f"Error: {str(e)}")
-            return False
-    
-    def test_customer_otp_login(self):
-        """Test customer OTP authentication flow"""
-        try:
-            # Step 1: Send OTP
-            otp_payload = {
-                "email": CUSTOMER_EMAIL,
-                "role": "customer"
-            }
-            
-            otp_response = self.session.post(f"{BACKEND_URL}/auth/send-otp", json=otp_payload)
-            
-            if otp_response.status_code != 200:
-                self.log_test(
-                    "Customer OTP Login", 
-                    False, 
-                    f"Failed to send OTP: {otp_response.status_code}"
-                )
-                return False
-            
-            otp_data = otp_response.json()
-            otp = otp_data.get("otp")
-            
-            if not otp:
-                self.log_test(
-                    "Customer OTP Login", 
-                    False, 
-                    "No OTP received in response"
-                )
-                return False
-            
-            # Step 2: Verify OTP
-            verify_payload = {
-                "email": CUSTOMER_EMAIL,
-                "otp": otp,
-                "role": "customer",
-                "name": "Test Customer"
-            }
-            
-            verify_response = self.session.post(f"{BACKEND_URL}/auth/verify-otp", json=verify_payload)
-            
-            if verify_response.status_code == 200:
-                verify_data = verify_response.json()
-                access_token = verify_data.get("access_token")
-                user_data = verify_data.get("user")
-                
-                if access_token and user_data:
-                    self.customer_token = access_token
-                    # Create a new session for customer to avoid header conflicts
-                    self.customer_session = requests.Session()
-                    self.customer_session.headers.update({"Authorization": f"Bearer {access_token}"})
-                    
-                    self.log_test(
-                        "Customer OTP Login", 
-                        True, 
-                        f"Customer login successful. User ID: {user_data.get('id')}, Name: {user_data.get('name')}"
-                    )
-                    return True
-                else:
-                    self.log_test(
-                        "Customer OTP Login", 
-                        False, 
-                        f"Missing access_token or user data in response"
-                    )
-                    return False
-            else:
-                self.log_test(
-                    "Customer OTP Login", 
-                    False, 
-                    f"OTP verification failed: {verify_response.status_code}, {verify_response.text}"
-                )
-                return False
-                
-        except Exception as e:
-            self.log_test("Customer OTP Login", False, f"Error: {str(e)}")
-            return False
-    
-    def test_get_customer_orders(self):
-        """Test getting customer orders"""
-        try:
-            if not self.customer_token:
-                self.log_test("Get Customer Orders", False, "Customer not logged in")
-                return False, None
-            
-            response = self.customer_session.get(f"{BACKEND_URL}/customer/orders")
-            
-            if response.status_code == 200:
-                data = response.json()
-                orders = data.get("orders", [])
-                total = data.get("total", 0)
-                
-                self.log_test(
-                    "Get Customer Orders", 
-                    True, 
-                    f"Found {total} customer orders"
-                )
-                return True, orders
-            else:
-                self.log_test(
-                    "Get Customer Orders", 
-                    False, 
-                    f"Status code: {response.status_code}, Response: {response.text}"
-                )
-                return False, None
-                
-        except Exception as e:
-            self.log_test("Get Customer Orders", False, f"Error: {str(e)}")
-            return False, None
-    
-    def test_get_order_details(self, order_id):
-        """Test getting single order details"""
-        try:
-            if not self.customer_token:
-                self.log_test("Get Order Details", False, "Customer not logged in")
-                return False
-            
-            response = self.customer_session.get(f"{BACKEND_URL}/customer/orders/{order_id}")
-            
-            if response.status_code == 200:
-                order_data = response.json()
-                
-                # Check if order has required fields
-                required_fields = ["id", "status", "total_amount", "items"]
-                missing_fields = [field for field in required_fields if field not in order_data]
-                
-                if not missing_fields:
-                    self.log_test(
-                        "Get Order Details", 
-                        True, 
-                        f"Order details retrieved successfully. Status: {order_data.get('status')}, Total: {order_data.get('total_amount')}, Items: {len(order_data.get('items', []))}"
-                    )
-                    return True
-                else:
-                    self.log_test(
-                        "Get Order Details", 
-                        False, 
-                        f"Missing required fields: {missing_fields}"
-                    )
-                    return False
-            else:
-                self.log_test(
-                    "Get Order Details", 
-                    False, 
-                    f"Status code: {response.status_code}, Response: {response.text}"
-                )
-                return False
-                
-        except Exception as e:
-            self.log_test("Get Order Details", False, f"Error: {str(e)}")
-            return False
-    
-    def run_driver_status_update_flow(self):
-        """Test the complete driver status update flow"""
-        print("🚚 Testing Driver Status Update Flow")
-        print("=" * 50)
+        """Test 1: Driver Login"""
+        self.log("Testing Driver Login...")
         
-        # Step 1: Driver login
-        if not self.test_driver_login():
-            print("❌ Driver login failed, aborting driver flow")
+        response = self.make_request("POST", "/auth/driver/login", {
+            "email": DRIVER_EMAIL,
+            "password": DRIVER_PASSWORD
+        })
+        
+        if not response:
+            self.test_result("Driver Login", False, "Request failed")
             return False
         
-        # Step 2: Get assigned deliveries
-        success, assigned_deliveries = self.test_get_assigned_deliveries()
-        
-        order_id = None
-        
-        # If no assigned deliveries, try to accept one
-        if not assigned_deliveries:
-            print("📋 No assigned deliveries found, looking for available deliveries...")
-            
-            # Step 3: Get available deliveries
-            success, available_deliveries = self.test_get_available_deliveries()
-            
-            if success and available_deliveries:
-                # Accept the first available delivery
-                order_id = available_deliveries[0]["id"]
-                if self.test_accept_delivery(order_id):
-                    print(f"✅ Accepted delivery {order_id}")
-                else:
-                    print("❌ Failed to accept delivery")
-                    return False
-            else:
-                print("❌ No available deliveries found")
-                return False
-        else:
-            # Use the first assigned delivery
-            order_id = assigned_deliveries[0]["id"]
-            print(f"📦 Using assigned delivery {order_id}")
-        
-        if not order_id:
-            print("❌ No order ID available for status updates")
-            return False
-        
-        # Step 4: Update status through the flow
-        statuses = ["picked_up", "out_for_delivery", "delivered"]
-        
-        for status in statuses:
-            if not self.test_update_delivery_status(order_id, status):
-                print(f"❌ Failed to update status to {status}")
-                return False
-            time.sleep(1)  # Small delay between status updates
-        
-        print("✅ Driver status update flow completed successfully!")
-        return True
-    
-    def test_create_sample_order(self):
-        """Create a sample order for testing order tracking"""
-        try:
-            if not self.customer_token:
-                self.log_test("Create Sample Order", False, "Customer not logged in")
-                return False, None
-            
-            # First, get stores to find one to order from
-            stores_response = self.customer_session.get(f"{BACKEND_URL}/customer/stores", params={"lat": 19.076, "lng": 72.8777})
-            
-            if stores_response.status_code != 200:
-                self.log_test("Create Sample Order", False, f"Failed to get stores: {stores_response.status_code}")
-                return False, None
-            
-            stores_data = stores_response.json()
-            stores = stores_data.get("stores", [])
-            
-            if not stores:
-                self.log_test("Create Sample Order", False, "No stores available")
-                return False, None
-            
-            store_id = stores[0]["id"]
-            
-            # Get store details to find items
-            store_response = self.customer_session.get(f"{BACKEND_URL}/customer/restaurants/{store_id}")
-            
-            if store_response.status_code != 200:
-                self.log_test("Create Sample Order", False, f"Failed to get store details: {store_response.status_code}")
-                return False, None
-            
-            store_data = store_response.json()
-            categories = store_data.get("categories", [])
-            
-            if not categories or not categories[0].get("items"):
-                self.log_test("Create Sample Order", False, "No items available in store")
-                return False, None
-            
-            item = categories[0]["items"][0]
-            
-            # Add item to cart
-            cart_payload = {
-                "store_id": store_id,
-                "item_id": item["id"],
-                "quantity": 1
-            }
-            
-            cart_response = self.customer_session.post(f"{BACKEND_URL}/customer/cart/add", json=cart_payload)
-            
-            if cart_response.status_code != 200:
-                self.log_test("Create Sample Order", False, f"Failed to add to cart: {cart_response.status_code}")
-                return False, None
-            
-            # Create an address
-            address_payload = {
-                "address_line": "123 Test Street",
-                "city": "Mumbai",
-                "state": "Maharashtra",
-                "pincode": "400001",
-                "lat": 19.076,
-                "lng": 72.8777,
-                "is_default": True
-            }
-            
-            address_response = self.customer_session.post(f"{BACKEND_URL}/customer/addresses", json=address_payload)
-            
-            if address_response.status_code != 200:
-                self.log_test("Create Sample Order", False, f"Failed to create address: {address_response.status_code}")
-                return False, None
-            
-            address_data = address_response.json()
-            address_id = address_data.get("id")
-            
-            # Place order
-            order_payload = {
-                "store_id": store_id,
-                "delivery_address_id": address_id,
-                "payment_method": "cash",
-                "special_instructions": "Test order for API testing",
-                "items": [{"item_id": item["id"], "quantity": 1}]
-            }
-            
-            order_response = self.customer_session.post(f"{BACKEND_URL}/customer/orders", json=order_payload)
-            
-            if order_response.status_code == 200:
-                order_data = order_response.json()
-                order_id = order_data.get("order_id")
-                
-                self.log_test(
-                    "Create Sample Order", 
-                    True, 
-                    f"Sample order created successfully. Order ID: {order_id}"
-                )
-                return True, order_id
-            else:
-                self.log_test(
-                    "Create Sample Order", 
-                    False, 
-                    f"Failed to place order: {order_response.status_code}, {order_response.text}"
-                )
-                return False, None
-                
-        except Exception as e:
-            self.log_test("Create Sample Order", False, f"Error: {str(e)}")
-            return False, None
-    
-    def run_customer_order_tracking_flow(self):
-        """Test the complete customer order tracking flow"""
-        print("👤 Testing Customer Order Tracking Flow")
-        print("=" * 50)
-        
-        # Step 1: Customer login
-        if not self.test_customer_otp_login():
-            print("❌ Customer login failed, aborting customer flow")
-            return False
-        
-        # Step 2: Create a sample order for testing
-        order_created, order_id = self.test_create_sample_order()
-        
-        # Step 3: Get customer orders
-        success, orders = self.test_get_customer_orders()
-        
-        if not success:
-            print("❌ Failed to get customer orders")
-            return False
-        
-        # Step 4: Test order details endpoint
-        if orders and len(orders) > 0:
-            # Use the first order from the list
-            test_order_id = orders[0]["id"]
-            if self.test_get_order_details(test_order_id):
-                print("✅ Customer order tracking flow completed successfully!")
+        if response.status_code == 200:
+            data = response.json()
+            if "access_token" in data:
+                self.driver_token = data["access_token"]
+                user_info = data.get("user", {})
+                self.test_result("Driver Login", True, f"Logged in as {user_info.get('name', 'Driver')}")
                 return True
             else:
-                print("❌ Failed to get order details")
-                return False
-        elif order_created and order_id:
-            # Use the newly created order
-            if self.test_get_order_details(order_id):
-                print("✅ Customer order tracking flow completed successfully!")
-                return True
-            else:
-                print("❌ Failed to get order details")
+                self.test_result("Driver Login", False, "No access token in response")
                 return False
         else:
-            print("📋 No orders available for testing order details endpoint")
-            # Still consider this a success since the orders list API worked
+            self.test_result("Driver Login", False, f"Status {response.status_code}: {response.text}")
+            return False
+    
+    def test_available_deliveries_enriched(self):
+        """Test 2: Available Deliveries with Enriched Data"""
+        self.log("Testing Available Deliveries with enriched data...")
+        
+        response = self.make_request("GET", "/delivery/available?lat=19.076&lng=72.8777&radius_km=10")
+        
+        if not response:
+            self.test_result("Available Deliveries (enriched)", False, "Request failed")
+            return False
+        
+        if response.status_code == 200:
+            data = response.json()
+            deliveries = data.get("deliveries", [])
+            
+            if not deliveries:
+                self.test_result("Available Deliveries (enriched)", True, "No available deliveries (expected)")
+                return True
+            
+            # Check first delivery for enriched data
+            delivery = deliveries[0]
+            required_fields = {
+                "pickup_location": ["name", "phone", "address"],
+                "drop_location": ["address", "city"],
+                "customer_phone": str,
+                "customer": ["name", "phone"],
+                "items": list
+            }
+            
+            missing_fields = []
+            for field, expected in required_fields.items():
+                if field not in delivery:
+                    missing_fields.append(field)
+                elif isinstance(expected, list):
+                    # Check nested fields
+                    for subfield in expected:
+                        if subfield not in delivery[field]:
+                            missing_fields.append(f"{field}.{subfield}")
+                elif expected == list and not isinstance(delivery[field], list):
+                    missing_fields.append(f"{field} (should be list)")
+            
+            if missing_fields:
+                self.test_result("Available Deliveries (enriched)", False, f"Missing enriched fields: {missing_fields}")
+                return False
+            else:
+                self.test_result("Available Deliveries (enriched)", True, f"Found {len(deliveries)} deliveries with all enriched data")
+                return True
+        else:
+            self.test_result("Available Deliveries (enriched)", False, f"Status {response.status_code}: {response.text}")
+            return False
+    
+    def test_accept_delivery(self):
+        """Test 3: Accept Delivery"""
+        self.log("Testing Accept Delivery...")
+        
+        # First get available deliveries
+        response = self.make_request("GET", "/delivery/available?lat=19.076&lng=72.8777&radius_km=10")
+        
+        if not response or response.status_code != 200:
+            self.test_result("Accept Delivery", False, "Could not get available deliveries")
+            return False
+        
+        data = response.json()
+        deliveries = data.get("deliveries", [])
+        
+        if not deliveries:
+            self.test_result("Accept Delivery", False, "No available deliveries to accept")
+            return False
+        
+        # Accept the first delivery
+        order_id = deliveries[0]["id"]
+        self.test_order_id = order_id
+        
+        response = self.make_request("POST", f"/delivery/accept/{order_id}")
+        
+        if not response:
+            self.test_result("Accept Delivery", False, "Request failed")
+            return False
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("success"):
+                self.test_result("Accept Delivery", True, f"Accepted order {order_id}")
+                return True
+            else:
+                self.test_result("Accept Delivery", False, "Success flag not set")
+                return False
+        else:
+            self.test_result("Accept Delivery", False, f"Status {response.status_code}: {response.text}")
+            return False
+    
+    def test_assigned_deliveries_enriched(self):
+        """Test 4: Assigned Deliveries with Enriched Data"""
+        self.log("Testing Assigned Deliveries with enriched data...")
+        
+        response = self.make_request("GET", "/delivery/assigned")
+        
+        if not response:
+            self.test_result("Assigned Deliveries (enriched)", False, "Request failed")
+            return False
+        
+        if response.status_code == 200:
+            data = response.json()
+            deliveries = data.get("deliveries", [])
+            
+            if not deliveries:
+                self.test_result("Assigned Deliveries (enriched)", False, "No assigned deliveries found")
+                return False
+            
+            # Check first delivery for enriched data
+            delivery = deliveries[0]
+            required_fields = {
+                "store": ["name", "phone", "address"],
+                "pickup_location": ["name", "address", "phone"],
+                "drop_location": ["address", "city"],
+                "customer_phone": str,
+                "customer": ["name", "phone"],
+                "items": list
+            }
+            
+            missing_fields = []
+            for field, expected in required_fields.items():
+                if field not in delivery:
+                    missing_fields.append(field)
+                elif isinstance(expected, list):
+                    # Check nested fields
+                    for subfield in expected:
+                        if subfield not in delivery[field]:
+                            missing_fields.append(f"{field}.{subfield}")
+                elif expected == list and not isinstance(delivery[field], list):
+                    missing_fields.append(f"{field} (should be list)")
+            
+            if missing_fields:
+                self.test_result("Assigned Deliveries (enriched)", False, f"Missing enriched fields: {missing_fields}")
+                return False
+            else:
+                self.test_result("Assigned Deliveries (enriched)", True, f"Found {len(deliveries)} assigned deliveries with all enriched data")
+                return True
+        else:
+            self.test_result("Assigned Deliveries (enriched)", False, f"Status {response.status_code}: {response.text}")
+            return False
+    
+    def test_5_step_status_flow(self):
+        """Test 5: 5-Step Status Update Flow"""
+        self.log("Testing 5-Step Status Update Flow...")
+        
+        if not self.test_order_id:
+            self.test_result("5-Step Status Flow", False, "No order ID available for testing")
+            return False
+        
+        # Define the 5-step flow
+        status_flow = [
+            "on_the_way",
+            "picked_up", 
+            "in_transit",
+            "reached_location",
+            "delivered"
+        ]
+        
+        success_count = 0
+        
+        for i, status in enumerate(status_flow):
+            self.log(f"  Step {i+1}: Updating to '{status}'...")
+            
+            response = self.make_request("PUT", f"/delivery/status/{self.test_order_id}", {
+                "status": status
+            })
+            
+            if not response:
+                self.test_result(f"Status Update - {status}", False, "Request failed")
+                continue
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    self.test_result(f"Status Update - {status}", True, f"Successfully updated to {status}")
+                    success_count += 1
+                else:
+                    self.test_result(f"Status Update - {status}", False, "Success flag not set")
+            else:
+                self.test_result(f"Status Update - {status}", False, f"Status {response.status_code}: {response.text}")
+        
+        # Overall flow test result
+        if success_count == len(status_flow):
+            self.test_result("5-Step Status Flow (Complete)", True, f"All {len(status_flow)} status updates successful")
             return True
+        else:
+            self.test_result("5-Step Status Flow (Complete)", False, f"Only {success_count}/{len(status_flow)} status updates successful")
+            return False
+    
+    def test_invalid_status(self):
+        """Test 6: Invalid Status Test"""
+        self.log("Testing Invalid Status rejection...")
+        
+        if not self.test_order_id:
+            self.test_result("Invalid Status Test", False, "No order ID available for testing")
+            return False
+        
+        response = self.make_request("PUT", f"/delivery/status/{self.test_order_id}", {
+            "status": "invalid"
+        })
+        
+        if not response:
+            self.test_result("Invalid Status Test", False, "Request failed")
+            return False
+        
+        if response.status_code == 400:
+            self.test_result("Invalid Status Test", True, "Invalid status correctly rejected with 400")
+            return True
+        else:
+            self.test_result("Invalid Status Test", False, f"Expected 400, got {response.status_code}")
+            return False
     
     def run_all_tests(self):
-        """Run all the specific flow tests"""
-        print("🚀 Starting ViaGo Backend API Flow Tests")
-        print("Testing Driver Status Update & Customer Order Tracking")
-        print("=" * 60)
+        """Run all tests in sequence"""
+        self.log("🚀 Starting ViaGo Backend API Tests...")
+        self.log(f"Backend URL: {BACKEND_URL}")
+        self.log(f"Driver Credentials: {DRIVER_EMAIL} / {DRIVER_PASSWORD}")
+        self.log("=" * 60)
         
-        # Test 0: Health check
-        if not self.test_health_check():
-            print("❌ Health check failed, aborting tests")
-            return
+        # Test sequence
+        tests = [
+            self.test_driver_login,
+            self.test_available_deliveries_enriched,
+            self.test_accept_delivery,
+            self.test_assigned_deliveries_enriched,
+            self.test_5_step_status_flow,
+            self.test_invalid_status
+        ]
         
-        # Test Flow 1: Driver Status Update Flow
-        driver_flow_success = self.run_driver_status_update_flow()
+        for test in tests:
+            try:
+                test()
+            except Exception as e:
+                self.log(f"Test {test.__name__} crashed: {str(e)}", "ERROR")
+                self.test_result(test.__name__, False, f"Test crashed: {str(e)}")
+            
+            self.log("-" * 40)
         
-        print("\n" + "=" * 60)
+        # Final summary
+        self.log("=" * 60)
+        self.log("🏁 TEST SUMMARY")
+        self.log(f"Total Tests: {self.results['total_tests']}")
+        self.log(f"Passed: {self.results['passed']}")
+        self.log(f"Failed: {self.results['failed']}")
         
-        # Test Flow 2: Customer Order Tracking Flow
-        customer_flow_success = self.run_customer_order_tracking_flow()
+        if self.results['failed'] > 0:
+            self.log("❌ FAILED TESTS:")
+            for error in self.results['errors']:
+                self.log(f"  - {error}")
         
-        # Summary
-        print("\n" + "=" * 60)
-        print("📊 FLOW TEST SUMMARY")
-        print("=" * 60)
+        success_rate = (self.results['passed'] / self.results['total_tests']) * 100 if self.results['total_tests'] > 0 else 0
+        self.log(f"Success Rate: {success_rate:.1f}%")
         
-        passed = sum(1 for result in self.test_results if result["success"])
-        total = len(self.test_results)
-        
-        print(f"Total Tests: {total}")
-        print(f"Passed: {passed}")
-        print(f"Failed: {total - passed}")
-        print(f"Success Rate: {(passed/total)*100:.1f}%")
-        
-        print(f"\n🚚 Driver Status Update Flow: {'✅ PASS' if driver_flow_success else '❌ FAIL'}")
-        print(f"👤 Customer Order Tracking Flow: {'✅ PASS' if customer_flow_success else '❌ FAIL'}")
-        
-        print("\n📋 DETAILED RESULTS:")
-        for result in self.test_results:
-            status = "✅" if result["success"] else "❌"
-            print(f"{status} {result['test']}")
-            if result["details"]:
-                print(f"   {result['details']}")
-        
-        return self.test_results
+        if success_rate >= 80:
+            self.log("🎉 OVERALL RESULT: PASS")
+            return True
+        else:
+            self.log("💥 OVERALL RESULT: FAIL")
+            return False
 
 if __name__ == "__main__":
-    tester = ViaGoFlowTester()
-    results = tester.run_all_tests()
+    tester = ViaGoAPITester()
+    success = tester.run_all_tests()
+    sys.exit(0 if success else 1)

@@ -65,18 +65,35 @@ async def get_available_deliveries(
             order["pickup_location"] = {
                 "name": store.get("name"),
                 "address": store.get("address_line"),
+                "city": store.get("city", ""),
+                "phone": store.get("phone", "N/A"),
                 "lat": store.get("lat"),
                 "lng": store.get("lng"),
-                "distance_km": distance
+                "distance_km": distance,
+                "store_type": store.get("store_type", "restaurant")
             }
             
             address = order.get("delivery_address") or {}
             order["drop_location"] = {
                 "address": address.get("address_line"),
                 "city": address.get("city"),
+                "landmark": address.get("landmark", ""),
                 "lat": address.get("lat"),
                 "lng": address.get("lng")
             }
+            order["customer_phone"] = order.get("customer_phone") or address.get("phone") or address.get("mobile") or "N/A"
+            
+            # Customer info
+            customer = await db.users.find_one({"id": order.get("customer_id")}, {"_id": 0, "name": 1, "phone": 1})
+            if customer:
+                order["customer"] = {
+                    "name": customer.get("name", "Customer"),
+                    "phone": order.get("customer_phone", "N/A")
+                }
+            
+            # Items
+            items = await db.order_items.find({"order_id": order["id"]}, {"_id": 0}).to_list(100)
+            order["items"] = items
             
             if address.get("lat") and address.get("lng"):
                 delivery_distance = calculate_distance(store["lat"], store["lng"], address["lat"], address["lng"])
@@ -134,15 +151,50 @@ async def get_assigned_deliveries(current_user: dict = Depends(get_current_user)
     }, {"_id": 0}).to_list(100)
     
     for order in orders:
+        # Store info with phone
         store = await db.stores.find_one({"id": order["store_id"]}, {"_id": 0})
         if store:
             order["store"] = {
                 "name": store.get("name"),
-                "phone": store.get("phone"),
-                "address": store.get("address_line"),
+                "phone": store.get("phone", "N/A"),
+                "address": store.get("address_line", ""),
+                "city": store.get("city", ""),
+                "lat": store.get("lat"),
+                "lng": store.get("lng"),
+                "store_type": store.get("store_type", "restaurant")
+            }
+            order["pickup_location"] = {
+                "name": store.get("name"),
+                "address": store.get("address_line", ""),
+                "city": store.get("city", ""),
+                "phone": store.get("phone", "N/A"),
                 "lat": store.get("lat"),
                 "lng": store.get("lng")
             }
+        
+        # Drop-off with customer phone
+        addr = order.get("delivery_address") or {}
+        order["drop_location"] = {
+            "address": addr.get("address_line", ""),
+            "city": addr.get("city", ""),
+            "landmark": addr.get("landmark", ""),
+            "pincode": addr.get("pincode", ""),
+            "lat": addr.get("lat"),
+            "lng": addr.get("lng")
+        }
+        order["customer_phone"] = order.get("customer_phone") or addr.get("phone") or addr.get("mobile") or "N/A"
+        
+        # Customer info
+        customer = await db.users.find_one({"id": order.get("customer_id")}, {"_id": 0, "name": 1, "email": 1, "phone": 1})
+        if customer:
+            order["customer"] = {
+                "name": customer.get("name", "Customer"),
+                "phone": order.get("customer_phone", "N/A")
+            }
+        
+        # Order items
+        items = await db.order_items.find({"order_id": order["id"]}, {"_id": 0}).to_list(100)
+        order["items"] = items
     
     return {"deliveries": orders, "total": len(orders)}
 
@@ -151,7 +203,7 @@ async def update_delivery_status(order_id: str, status_data: dict, current_user:
     await require_role(current_user, ["delivery_partner"])
     new_status = status_data.get("status")
     
-    valid_statuses = ["picked_up", "out_for_delivery", "delivered"]
+    valid_statuses = ["on_the_way", "picked_up", "in_transit", "reached_location", "delivered"]
     if new_status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
     
@@ -160,8 +212,14 @@ async def update_delivery_status(order_id: str, status_data: dict, current_user:
         raise HTTPException(status_code=404, detail="Order not found")
     
     update = {"status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}
-    if new_status == "picked_up":
+    if new_status == "on_the_way":
+        update["on_the_way_at"] = datetime.now(timezone.utc).isoformat()
+    elif new_status == "picked_up":
         update["picked_up_at"] = datetime.now(timezone.utc).isoformat()
+    elif new_status == "in_transit":
+        update["in_transit_at"] = datetime.now(timezone.utc).isoformat()
+    elif new_status == "reached_location":
+        update["reached_location_at"] = datetime.now(timezone.utc).isoformat()
     elif new_status == "delivered":
         update["delivered_at"] = datetime.now(timezone.utc).isoformat()
         if status_data.get("proof_photo"):
