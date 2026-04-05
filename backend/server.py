@@ -6,6 +6,9 @@ import os
 import logging
 from pathlib import Path
 
+# Import rate limiting middleware
+from middleware.rate_limit import RateLimitMiddleware, StrictRateLimitMiddleware
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -74,6 +77,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rate Limiting Middleware
+# General rate limit: 60 requests per minute per IP
+app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
+
+# Strict rate limit for auth endpoints: 10 requests per minute per IP
+app.add_middleware(StrictRateLimitMiddleware, requests_per_minute=10)
 
 # Configure logging
 logging.basicConfig(

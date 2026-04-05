@@ -3,6 +3,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from models.user import OTPRequest, OTPVerify, LoginResponse, User, UserCreate
 from models.tenant import Tenant
 from utils.helpers import generate_otp, create_access_token
+from services.sms_service import send_otp as send_sms_otp, verify_otp as verify_sms_otp
 from datetime import datetime, timedelta, timezone
 import os
 import random
@@ -10,7 +11,8 @@ import uuid
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-# In-memory OTP storage (use Redis in production)
+# In-memory OTP storage (for fallback/mock mode only)
+# When using Twilio Verify, this storage is not used
 otp_storage = {}
 
 def get_db():
@@ -20,66 +22,93 @@ def get_db():
 @router.post("/send-otp")
 async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
     """
-    Send OTP to phone number
-    In production, integrate with SMS gateway (Twilio/MSG91)
+    Send OTP to phone number via Twilio SMS
+    Falls back to mock mode if Twilio is not configured
     """
-    otp = generate_otp(6)
+    try:
+        # Send OTP via Twilio (or mock mode)
+        result = await send_sms_otp(request.phone)
+        
+        # If mock mode, store OTP for verification
+        if result.get("mock"):
+            otp_storage[request.phone] = {
+                "otp": result["otp"],
+                "expires_at": datetime.utcnow() + timedelta(minutes=5),
+                "attempts": 0
+            }
+        
+        response = {
+            "success": True,
+            "message": result["message"],
+            "phone": request.phone
+        }
+        
+        # Only include OTP in response for mock/development mode
+        if result.get("mock"):
+            response["otp"] = result["otp"]
+            response["note"] = "OTP shown for testing only - not sent via SMS"
+        
+        return response
     
-    # Store OTP with 5 minute expiry
-    otp_storage[request.phone] = {
-        "otp": otp,
-        "expires_at": datetime.utcnow() + timedelta(minutes=5),
-        "attempts": 0
-    }
-    
-    # TODO: Send OTP via SMS gateway
-    print(f"OTP for {request.phone}: {otp}")  # For development
-    
-    return {
-        "success": True,
-        "message": "OTP sent successfully",
-        "phone": request.phone,
-        "otp": otp  # Remove in production!
-    }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send OTP: {str(e)}"
+        )
 
 @router.post("/verify-otp", response_model=LoginResponse)
 async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_db)):
     """
     Verify OTP and login/register user
+    Works with both Twilio Verify API and mock mode
     """
-    # Check if OTP exists
-    stored_otp_data = otp_storage.get(request.phone)
+    # Try Twilio Verify first (production mode)
+    is_valid = await verify_sms_otp(request.phone, request.otp)
     
-    if not stored_otp_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OTP not found or expired. Please request a new OTP."
-        )
-    
-    # Check expiry
-    if datetime.utcnow() > stored_otp_data["expires_at"]:
-        del otp_storage[request.phone]
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OTP expired. Please request a new OTP."
-        )
-    
-    # Verify OTP
-    if stored_otp_data["otp"] != request.otp:
-        stored_otp_data["attempts"] += 1
-        if stored_otp_data["attempts"] >= 3:
+    # If not using Twilio (mock mode), check local storage
+    if not is_valid:
+        stored_otp_data = otp_storage.get(request.phone)
+        
+        if not stored_otp_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="OTP not found or expired. Please request a new OTP."
+            )
+        
+        # Check expiry
+        if datetime.utcnow() > stored_otp_data["expires_at"]:
             del otp_storage[request.phone]
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Too many failed attempts. Please request a new OTP."
+                detail="OTP expired. Please request a new OTP."
             )
+        
+        # Verify OTP from storage
+        if stored_otp_data["otp"] != request.otp:
+            stored_otp_data["attempts"] += 1
+            if stored_otp_data["attempts"] >= 3:
+                del otp_storage[request.phone]
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Too many failed attempts. Please request a new OTP."
+                )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid OTP"
+            )
+        
+        is_valid = True
+    
+    # OTP verified successfully
+    if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid OTP"
         )
     
-    # OTP verified, clear from storage
-    del otp_storage[request.phone]
+    # Clean up storage if using mock mode
+    if request.phone in otp_storage:
+        del otp_storage[request.phone]
     
     # Check if user exists
     user_doc = await db.users.find_one({"phone": request.phone, "role": request.role})

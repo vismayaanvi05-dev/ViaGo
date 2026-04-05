@@ -137,17 +137,37 @@ async def discover_stores(
     filtered_stores.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 999)
     
     # Enrich with tenant info
+    # Optimized: Batch fetch tenants and reviews to avoid N+1 queries
+    store_ids = [store["id"] for store in filtered_stores]
+    tenant_ids = list(set([store["tenant_id"] for store in filtered_stores]))
+    
+    # Batch fetch tenants
+    tenants = await db.tenants.find(
+        {"id": {"$in": tenant_ids}},
+        {"_id": 0, "id": 1, "name": 1}
+    ).to_list(len(tenant_ids))
+    tenant_map = {t["id"]: t["name"] for t in tenants}
+    
+    # Batch fetch reviews with aggregation
+    review_pipeline = [
+        {"$match": {"store_id": {"$in": store_ids}}},
+        {"$group": {
+            "_id": "$store_id",
+            "avg_rating": {"$avg": "$overall_rating"},
+            "total_reviews": {"$sum": 1}
+        }}
+    ]
+    review_stats = await db.reviews.aggregate(review_pipeline).to_list(len(store_ids))
+    review_map = {r["_id"]: r for r in review_stats}
+    
+    # Apply to stores
     for store in filtered_stores:
-        tenant = await db.tenants.find_one({"id": store["tenant_id"]}, {"_id": 0, "name": 1})
-        if tenant:
-            store["tenant_name"] = tenant.get("name")
+        store["tenant_name"] = tenant_map.get(store["tenant_id"], "Unknown")
         
-        # Get average rating
-        reviews = await db.reviews.find({"store_id": store["id"]}).to_list(1000)
-        if reviews:
-            avg_rating = sum(r.get("overall_rating", 0) for r in reviews) / len(reviews)
-            store["rating"] = round(avg_rating, 1)
-            store["total_reviews"] = len(reviews)
+        if store["id"] in review_map:
+            stats = review_map[store["id"]]
+            store["rating"] = round(stats["avg_rating"], 1)
+            store["total_reviews"] = stats["total_reviews"]
         else:
             store["rating"] = 0
             store["total_reviews"] = 0
@@ -204,10 +224,19 @@ async def search_stores_and_items(
         "is_deleted": False
     }, {"_id": 0}).limit(20).to_list(20)
     
+    # Optimized: Batch fetch store info to avoid N+1
+    store_ids = [item.get("store_id") for item in items if item.get("store_id")]
+    stores = await db.stores.find(
+        {"id": {"$in": store_ids}},
+        {"_id": 0, "id": 1, "name": 1, "store_type": 1}
+    ).to_list(len(store_ids))
+    store_map = {s["id"]: s for s in stores}
+    
     # Enrich items with store info
     for item in items:
-        store = await db.stores.find_one({"id": item.get("store_id")}, {"_id": 0, "name": 1, "store_type": 1})
-        if store:
+        store_id = item.get("store_id")
+        if store_id and store_id in store_map:
+            store = store_map[store_id]
             item["store_name"] = store.get("name")
             item["store_type"] = store.get("store_type")
         results["items"].append(item)
@@ -1155,15 +1184,25 @@ async def get_my_orders(
         {"_id": 0}
     ).skip(skip).limit(limit).sort("placed_at", -1).to_list(limit)
     
+    # Optimized: Batch fetch store details to avoid N+1
+    store_ids = [order["store_id"] for order in orders if order.get("store_id")]
+    stores = await db.stores.find(
+        {"id": {"$in": store_ids}},
+        {"_id": 0, "id": 1, "name": 1, "logo_url": 1}
+    ).to_list(len(store_ids))
+    store_map = {s["id"]: s for s in stores}
+    
     # Enrich with store details
     for order in orders:
-        store = await db.stores.find_one({"id": order["store_id"]}, {"_id": 0, "name": 1, "logo_url": 1})
-        if store:
+        store_id = order.get("store_id")
+        if store_id and store_id in store_map:
+            store = store_map[store_id]
             order["store_name"] = store.get("name")
             order["store_logo"] = store.get("logo_url")
         
         # Remove _id from nested delivery_address if present
         if order.get("delivery_address") and isinstance(order["delivery_address"], dict):
+            order["delivery_address"].pop("_id", None)
             order["delivery_address"].pop("_id", None)
         
         # Convert datetime strings
