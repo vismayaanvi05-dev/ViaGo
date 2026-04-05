@@ -135,23 +135,23 @@ async def discover_stores(
     lng: float,
     module: str = None,  # 'food', 'grocery', 'laundry'
     town: str = None,  # Customer's town/village
+    city: str = None,  # Customer's city (from reverse geocoding)
     search: str = None,
     skip: int = 0,
     limit: int = 20,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
-    Discover stores based on location and module
-    Module-first architecture: filter stores by service type
-    Location-based: Only show stores from tenants in customer's location
+    Discover stores based on location and module.
+    Exact town/city match only — shows stores from tenants whose registered
+    town/city matches the customer's current city.
     """
     from utils.helpers import get_tenant_ids_by_location
     
-    # Get matching tenant IDs based on customer location
-    matching_tenant_ids = await get_tenant_ids_by_location(db, lat, lng, town)
+    # Get matching tenant IDs based on exact city/town match
+    matching_tenant_ids = await get_tenant_ids_by_location(db, lat, lng, town=town, city=city)
     
     if not matching_tenant_ids:
-        # No tenants found in this location
         return {
             "stores": [],
             "total": 0,
@@ -163,8 +163,16 @@ async def discover_stores(
     query = {
         "is_active": True,
         "is_accepting_orders": True,
-        "tenant_id": {"$in": matching_tenant_ids}  # Filter by tenant location
+        "tenant_id": {"$in": matching_tenant_ids}
     }
+    
+    # Filter stores by matching city/town (exact match with customer's location)
+    match_city = city or town
+    if match_city:
+        query["$or"] = [
+            {"city": {"$regex": f"^{match_city}$", "$options": "i"}},
+            {"town": {"$regex": f"^{match_city}$", "$options": "i"}},
+        ]
     
     # Filter by module
     if module:
@@ -181,42 +189,30 @@ async def discover_stores(
     
     stores = await db.stores.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
     
-    # Calculate distance and filter by delivery radius
-    filtered_stores = []
+    # Calculate distance for display purposes only (no filtering by radius)
     for store in stores:
         if store.get("lat") and store.get("lng"):
             distance = calculate_distance(lat, lng, store["lat"], store["lng"])
             store["distance_km"] = round(distance, 2)
-            
-            # Check if within delivery radius
-            delivery_radius = store.get("delivery_radius_km", 5)
-            if distance <= delivery_radius:
-                store["is_deliverable"] = True
-                filtered_stores.append(store)
-            else:
-                store["is_deliverable"] = False
         else:
-            # No coordinates, assume deliverable
             store["distance_km"] = None
-            store["is_deliverable"] = True
-            filtered_stores.append(store)
+        store["is_deliverable"] = True
     
-    # Sort by distance
-    filtered_stores.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 999)
+    # Sort by distance (nearest first)
+    stores.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 999)
     
     # Enrich with tenant info
-    # Optimized: Batch fetch tenants and reviews to avoid N+1 queries
-    store_ids = [store["id"] for store in filtered_stores]
-    tenant_ids = list(set([store["tenant_id"] for store in filtered_stores]))
+    store_ids = [store["id"] for store in stores]
+    tenant_ids = list(set([store["tenant_id"] for store in stores]))
     
     # Batch fetch tenants
     tenants = await db.tenants.find(
         {"id": {"$in": tenant_ids}},
         {"_id": 0, "id": 1, "name": 1}
-    ).to_list(len(tenant_ids))
+    ).to_list(len(tenant_ids)) if tenant_ids else []
     tenant_map = {t["id"]: t["name"] for t in tenants}
     
-    # Batch fetch reviews with aggregation
+    # Batch fetch reviews
     review_pipeline = [
         {"$match": {"store_id": {"$in": store_ids}}},
         {"$group": {
@@ -224,12 +220,12 @@ async def discover_stores(
             "avg_rating": {"$avg": "$overall_rating"},
             "total_reviews": {"$sum": 1}
         }}
-    ]
-    review_stats = await db.reviews.aggregate(review_pipeline).to_list(len(store_ids))
+    ] if store_ids else []
+    review_stats = await db.reviews.aggregate(review_pipeline).to_list(len(store_ids)) if store_ids else []
     review_map = {r["_id"]: r for r in review_stats}
     
-    # Apply to stores
-    for store in filtered_stores:
+    # Apply enrichment
+    for store in stores:
         store["tenant_name"] = tenant_map.get(store["tenant_id"], "Unknown")
         
         if store["id"] in review_map:
@@ -241,8 +237,8 @@ async def discover_stores(
             store["total_reviews"] = 0
     
     return {
-        "stores": filtered_stores,
-        "total": len(filtered_stores),
+        "stores": stores,
+        "total": len(stores),
         "module": module
     }
 

@@ -47,8 +47,8 @@ export const customerAPI = {
   // App
   getConfig: (lat: number, lng: number) => 
     apiClient.get('/customer/config', { params: { lat, lng } }),
-  getStores: (lat: number, lng: number, module?: string, search?: string) =>
-    apiClient.get('/customer/stores', { params: { lat, lng, module, search, limit: 20 } }),
+  getStores: (lat: number, lng: number, module?: string, search?: string, city?: string) =>
+    apiClient.get('/customer/stores', { params: { lat, lng, module, search, city, limit: 20 } }),
   search: (query: string, lat: number, lng: number, module?: string) =>
     apiClient.get('/customer/search', { params: { q: query, lat, lng, module } }),
   getRestaurant: (storeId: string) =>

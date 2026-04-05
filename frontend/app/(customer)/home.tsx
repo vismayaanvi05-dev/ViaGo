@@ -36,7 +36,8 @@ export default function CustomerHomeScreen() {
       setLoading(true);
       const response = await customerAPI.getStores(
         location.latitude, location.longitude,
-        selectedModule, searchQuery || undefined
+        selectedModule, searchQuery || undefined,
+        address?.city || undefined
       );
       setStores(response.data.stores || []);
     } catch (error) {
@@ -44,7 +45,7 @@ export default function CustomerHomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, [location, selectedModule, searchQuery]);
+  }, [location, address, selectedModule, searchQuery]);
 
   useEffect(() => { loadStores(); }, [loadStores]);
 

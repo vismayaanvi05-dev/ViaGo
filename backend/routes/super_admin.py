@@ -75,7 +75,9 @@ async def create_tenant_enhanced(
         mobile_number=tenant_data.get("mobile_number"),
         business_name=tenant_data.get("business_name"),
         address=tenant_data.get("address"),
-        town=tenant_data.get("town")
+        town=tenant_data.get("town"),
+        lat=tenant_data.get("lat"),
+        lng=tenant_data.get("lng")
     )
     tenant_dict = tenant.model_dump()
     tenant_dict["created_at"] = tenant_dict["created_at"].isoformat()
