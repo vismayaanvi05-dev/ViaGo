@@ -35,9 +35,8 @@ async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_d
         
         # Generate OTP for email
         otp = generate_otp(6)
-        result = await send_otp_email(request.email, otp, "User")
         
-        # Store OTP for verification
+        # Store OTP for verification FIRST (before attempting email send)
         otp_storage[request.email] = {
             "otp": otp,
             "role": request.role,
@@ -45,17 +44,30 @@ async def send_otp(request: OTPRequest, db: AsyncIOMotorDatabase = Depends(get_d
             "attempts": 0
         }
         
+        # Try to send email, but don't fail if email service has restrictions
+        email_sent = False
+        email_message = "OTP generated"
+        try:
+            result = await send_otp_email(request.email, otp, "User")
+            email_sent = True
+            email_message = result.get("message", "OTP sent successfully")
+        except Exception as email_error:
+            # Log the error but continue - OTP is already stored
+            print(f"Email send failed (OTP still valid): {str(email_error)}")
+            email_message = "OTP generated (email delivery may be limited in test mode)"
+        
         response = {
             "success": True,
-            "message": result["message"],
+            "message": email_message,
             "delivery_method": "email",
-            "email": request.email
+            "email": request.email,
+            "email_sent": email_sent
         }
         
         # Include OTP in response for testing (in production, remove this)
         if os.getenv("NODE_ENV") != "production":
             response["otp"] = otp
-            response["note"] = "OTP shown for testing only - Check your email"
+            response["note"] = "OTP shown for testing only"
         
         return response
     

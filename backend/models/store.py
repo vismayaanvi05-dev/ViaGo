@@ -70,6 +70,12 @@ class StoreUpdate(BaseModel):
     description: Optional[str] = None
     logo_url: Optional[str] = None
     banner_url: Optional[str] = None
+    address_line: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     delivery_radius_km: Optional[float] = None
