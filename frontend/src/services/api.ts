@@ -2,9 +2,12 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
-const API_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || 
-                process.env.EXPO_PUBLIC_BACKEND_URL || 
-                'https://intelligent-chandrasekhar-2.preview.emergentagent.com';
+const API_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || process.env.EXPO_PUBLIC_BACKEND_URL || 'https://hyperserve-food-mvp.emergent.host';
+
+  
+  // const API_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || 
+  //               process.env.EXPO_PUBLIC_BACKEND_URL || 
+  //               'https://intelligent-chandrasekhar-2.preview.emergentagent.com';
 
 const apiClient = axios.create({
   baseURL: `${API_URL}/api`,
