@@ -80,14 +80,13 @@ async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Too many failed attempts. Please request a new OTP.")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OTP")
     
-    del otp_storage[request.email]
-    
     # Check if customer exists
     user_doc = await db.users.find_one({"email": request.email, "role": "customer"}, {"_id": 0})
     
     if not user_doc:
         # New customer - need name for registration
         if not request.name:
+            # Don't delete OTP yet - user needs to provide name and retry
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, 
                 detail="Name required for new user registration"
@@ -104,6 +103,9 @@ async def verify_otp(request: OTPVerify, db: AsyncIOMotorDatabase = Depends(get_
         # Send welcome email to new customer
         from services.email_service import send_welcome_email
         await send_welcome_email(request.email, request.name)
+    
+    # OTP verified and user logged in - now delete the OTP
+    del otp_storage[request.email]
     
     token_data = {
         "user_id": user_doc["id"],
