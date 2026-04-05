@@ -215,7 +215,7 @@ export default function StoreDetailsScreen() {
                         {item.description ? (
                           <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
                         ) : null}
-                        <Text style={[styles.itemPrice, { color: moduleConfig.color }]}>{'\u20B9'}{item.base_price}</Text>
+                        <Text style={[styles.itemPrice, { color: moduleConfig.color }]}>{'\u20B9'}{item.base_price || item.price}</Text>
                       </View>
                     </View>
                     
